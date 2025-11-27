@@ -18,12 +18,19 @@ export async function register(req, res) {
 
   try {
     const existingUser = await findUserByEmail(email);
-    if (existingUser) return res.status(400).json({ success:false, message:"Email sudah terdaftar" });
+    if (existingUser)
+      return res.status(400).json({
+        success: false,
+        message: "Email sudah terdaftar",
+      });
 
     let finalRole = "user";
     if (role === "admin") {
       if (admin_secret !== process.env.ADMIN_SECRET) {
-        return res.status(403).json({ success:false, message: "Admin secret invalid" });
+        return res.status(403).json({
+          success: false,
+          message: "Admin secret invalid",
+        });
       }
       finalRole = "admin";
     }
@@ -33,13 +40,24 @@ export async function register(req, res) {
     res.json({
       success: true,
       message: "Berhasil melakukan registrasi",
-      data: { id: newUser.id, fullname: newUser.fullname, email: newUser.email, role: newUser.role },
+      data: {
+        id: newUser.id,
+        fullname: newUser.fullname,
+        email: newUser.email,
+        role: newUser.role,
+        created_at: newUser.created_at,
+      },
     });
   } catch (err) {
-    res.status(500).json({ success:false, message:"Terjadi Kesalahan server", error: err.message });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Terjadi Kesalahan server",
+        error: err.message,
+      });
   }
 }
-
 
 /**
  * POST /auth/login
