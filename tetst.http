@@ -1,0 +1,10 @@
+### REGISTER USER
+POST http://localhost:8080/auth/register
+Content-Type: application/json
+
+{
+  "fullname": "Test",
+  "email": "admin2@main.com",
+  "password": "admin123",
+  "role": "admin"
+}
