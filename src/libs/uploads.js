@@ -2,29 +2,29 @@ import multer from "multer";
 import path from "path";
 
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/"); 
+  destination: (req, file, cb) => {
+    cb(null, "./uploads/");
   },
-  filename: function (req, file, cb) {
+  filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    cb(null, `product_${Date.now()}${ext}`);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix + ext);
   },
 });
 
 function fileFilter(req, file, cb) {
   const allowedTypes = /jpeg|jpg|png/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const ext = path.extname(file.originalname).toLowerCase();
+  const mime = file.mimetype;
 
-  if (extname && mimetype) {
-    return cb(null, true);
-  } else {
-    cb(new Error("Format file harus jpg, jpeg, atau png"));
+  if (!allowedTypes.test(ext) || !allowedTypes.test(mime)) {
+    file.invalid = "File type tidak valid. Hanya jpeg, jpg, png.";
   }
+  cb(null, true); 
 }
 
 export const upload = multer({
   storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, 
   fileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 },
 });
