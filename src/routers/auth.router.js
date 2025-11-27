@@ -3,9 +3,6 @@ import { loginValidation, resgisterValidation } from "../validator/authValidator
 import { validate } from "../libs/validate.js";
 import { login, register } from "../controllers/auth.controllers.js";
 
-
-
-
 const router = express.Router();
 
 router.post("/register",resgisterValidation,validate ,register);

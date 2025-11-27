@@ -5,13 +5,12 @@ import { upload } from "../libs/uploads.js";
 import { validate } from "../libs/validate.js";
 import { createProductValidation, updateProductValidation } from "../validator/productValidator.js";
 
-
 const router = express.Router();
 
-router.post("", authMiddleware,validate,createProductValidation, adminOnly, createProductController);
-router.post("/:id/upload", upload.array("images", 5), authMiddleware, adminOnly, uploadProductImageController)
+router.post("", upload.array("images", 4), authMiddleware,validate,createProductValidation, adminOnly, createProductController);
+router.post("/:id/upload", upload.array("images", 5), uploadProductImageController)
 router.get("", authMiddleware, getAllProductsController);
 router.get("/:id", authMiddleware, getProductByIdController);
-router.patch("/:id", authMiddleware,validate, updateProductValidation, adminOnly, updateProductController);
+router.patch("/:id", authMiddleware,validate,upload.array("images", 5) ,updateProductValidation, adminOnly, updateProductController);
 router.delete("/:id", authMiddleware, adminOnly, deleteProductController)
 export default router;
