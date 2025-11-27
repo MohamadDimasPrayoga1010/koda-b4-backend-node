@@ -37,25 +37,24 @@ export async function register(req, res) {
 
     const newUser = await createUser(fullname, email, password, finalRole);
 
-    res.json({
+    res.status(201).json({
       success: true,
-      message: "Berhasil melakukan registrasi",
+      message: "User registered successfully",
       data: {
         id: newUser.id,
         fullname: newUser.fullname,
         email: newUser.email,
         role: newUser.role,
-        created_at: newUser.created_at,
+        createdAt: newUser.created_at,
+        updatedAt: newUser.updated_at,
       },
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Terjadi Kesalahan server",
-        error: err.message,
-      });
+    res.status(500).json({
+      success: false,
+      message: "Terjadi Kesalahan server",
+      error: err.message,
+    });
   }
 }
 
@@ -74,38 +73,37 @@ export async function login(req, res) {
 
   try {
     const user = await findUserByEmail(email);
-
-    if (!user) {
+    if (!user)
       return res.status(401).json({
         success: false,
         message: "Email atau password salah",
       });
-    }
 
     const validPassword = await argon2.verify(user.password, password);
-
-    if (!validPassword) {
+    if (!validPassword)
       return res.status(401).json({
         success: false,
         message: "Email atau password salah",
       });
-    }
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: user.id, email: user.email, role: user.role },
       process.env.APP_SECRET,
       { expiresIn: "15m" }
     );
 
-    res.json({
+    res.status(200).json({
       success: true,
-      message: "Login berhasil",
+      message: "Login success",
       data: {
         id: user.id,
         fullname: user.fullname,
         email: user.email,
+        role: user.role,
+        token,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
       },
-      token,
     });
   } catch (err) {
     res.status(500).json({
