@@ -14,16 +14,16 @@ datasource db {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
-  fullname      String
-  email         String    @unique
-  password      String
-  role          String?
-  reset_token   String?
-  reset_expires DateTime?
-  reset_otp     String?
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @default(now())
+  id            Int       @id @default(autoincrement()) @map("id")
+  fullname      String    @map("fullname")
+  email         String    @unique @map("email")
+  password      String    @map("password")
+  role          String?   @map("role")
+  reset_token   String?   @map("reset_token")
+  reset_expires DateTime? @map("reset_expires")
+  reset_otp     String?   @map("reset_otp")
+  created_at    DateTime  @default(now()) @map("created_at")
+  updated_at    DateTime  @default(now()) @map("updated_at")
 
   profile        Profile?
   forgotPassword ForgotPassword?
@@ -34,13 +34,13 @@ model User {
 }
 
 model Profile {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @unique
-  image      String?
-  phone      String?
-  address    String?
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  id         Int      @id @default(autoincrement()) @map("id")
+  userId     Int      @unique @map("user_id")
+  image      String?  @map("image")
+  phone      String?  @map("phone")
+  address    String?  @map("address")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @default(now()) @map("updated_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -48,11 +48,11 @@ model Profile {
 }
 
 model ForgotPassword {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @unique
-  token      String?
-  expires_at DateTime @default(now())
-  created_at DateTime @default(now())
+  id         Int      @id @default(autoincrement()) @map("id")
+  userId     Int      @unique @map("user_id")
+  token      String?  @map("token")
+  expires_at DateTime @default(now()) @map("expires_at")
+  created_at DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -60,23 +60,22 @@ model ForgotPassword {
 }
 
 model Variant {
-  id               Int    @id @default(autoincrement())
-  name             String
-  additional_price Int?   @default(0)
+  id               Int      @id @default(autoincrement()) @map("id")
+  name             String   @map("name")
+  additional_price Int?     @default(0) @map("additional_price")
 
   productVariants ProductVariant[]
-
-  carts            Cart[]            @relation("VariantToCart")
+  carts           Cart[]            @relation("VariantToCart")
   transactionItems TransactionItem[] @relation("VariantToTransactionItem")
 
   @@map("variants")
 }
 
 model Category {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  id         Int      @id @default(autoincrement()) @map("id")
+  name       String   @unique @map("name")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @default(now()) @map("updated_at")
 
   productsCategories ProductCategory[]
 
@@ -84,18 +83,18 @@ model Category {
 }
 
 model Product {
-  id           Int       @id @default(autoincrement())
-  title        String?
-  description  String?
-  stock        Int?
-  category_id  Int?
-  base_price   Float?
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @default(now())
-  deleted_at   DateTime?
-  is_favorite  Boolean   @default(false)
-  is_flashsale Boolean   @default(false)
-  rating       Float?
+  id           Int       @id @default(autoincrement()) @map("id")
+  title        String?   @map("title")
+  description  String?   @map("description")
+  stock        Int?      @map("stock")
+  category_id  Int?      @map("category_id")
+  base_price   Float?    @map("base_price")
+  created_at   DateTime  @default(now()) @map("created_at")
+  updated_at   DateTime  @default(now()) @map("updated_at")
+  deleted_at   DateTime? @map("deleted_at")
+  is_favorite  Boolean   @default(false) @map("is_favorite")
+  is_flashsale Boolean   @default(false) @map("is_flashsale")
+  rating       Float?    @map("rating")
 
   images           ProductImage[]
   categories       ProductCategory[]
@@ -112,11 +111,11 @@ model Product {
 }
 
 model ProductVariant {
-  id         Int      @id @default(autoincrement())
-  productId  Int
-  variantId  Int
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  id         Int      @id @default(autoincrement()) @map("id")
+  productId  Int      @map("product_id")
+  variantId  Int      @map("variant_id")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @default(now()) @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   variant Variant @relation(fields: [variantId], references: [id])
@@ -125,8 +124,8 @@ model ProductVariant {
 }
 
 model ProductCategory {
-  productId  Int
-  categoryId Int
+  productId  Int @map("product_id")
+  categoryId Int @map("category_id")
 
   product  Product  @relation(fields: [productId], references: [id])
   category Category @relation(fields: [categoryId], references: [id])
@@ -136,11 +135,11 @@ model ProductCategory {
 }
 
 model ProductImage {
-  id         Int       @id @default(autoincrement())
-  productId  Int?
-  image      String?
-  updated_at DateTime  @default(now())
-  deleted_at DateTime?
+  id         Int       @id @default(autoincrement()) @map("id")
+  productId  Int?      @map("product_id")
+  image      String?   @map("image")
+  updated_at DateTime  @default(now()) @map("updated_at")
+  deleted_at DateTime? @map("deleted_at")
 
   product Product? @relation(fields: [productId], references: [id])
 
@@ -148,9 +147,9 @@ model ProductImage {
 }
 
 model Size {
-  id               Int    @id @default(autoincrement())
-  name             String @unique
-  additional_price Float?
+  id               Int    @id @default(autoincrement()) @map("id")
+  name             String @unique @map("name")
+  additional_price Float? @map("additional_price")
 
   productSizes     ProductSize[]
   carts            Cart[]
@@ -160,8 +159,8 @@ model Size {
 }
 
 model ProductSize {
-  productId Int
-  sizeId    Int
+  productId Int @map("product_id")
+  sizeId    Int @map("size_id")
 
   product Product @relation(fields: [productId], references: [id])
   size    Size    @relation(fields: [sizeId], references: [id])
@@ -171,15 +170,15 @@ model ProductSize {
 }
 
 model Promo {
-  id          Int       @id @default(autoincrement())
-  title       String
-  description String
-  discount    Float
-  start       DateTime
-  end         DateTime
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @default(now())
-  deleted_at  DateTime?
+  id          Int       @id @default(autoincrement()) @map("id")
+  title       String    @map("title")
+  description String    @map("description")
+  discount    Float     @map("discount")
+  start       DateTime  @map("start")
+  end         DateTime  @map("end")
+  created_at  DateTime  @default(now()) @map("created_at")
+  updated_at  DateTime  @default(now()) @map("updated_at")
+  deleted_at  DateTime? @map("deleted_at")
 
   productPromos ProductPromo[]
 
@@ -187,9 +186,9 @@ model Promo {
 }
 
 model ProductPromo {
-  id        Int @id @default(autoincrement())
-  promoId   Int
-  productId Int
+  id        Int @id @default(autoincrement()) @map("id")
+  promoId   Int @map("promo_id")
+  productId Int @map("product_id")
 
   promo   Promo   @relation(fields: [promoId], references: [id])
   product Product @relation(fields: [productId], references: [id])
@@ -198,11 +197,11 @@ model ProductPromo {
 }
 
 model PaymentMethod {
-  id         Int      @id @default(autoincrement())
-  name       String   @unique
-  image      String
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  id         Int      @id @default(autoincrement()) @map("id")
+  name       String   @unique @map("name")
+  image      String   @map("image")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @default(now()) @map("updated_at")
 
   transactions Transaction[]
 
@@ -210,9 +209,9 @@ model PaymentMethod {
 }
 
 model Shipping {
-  id               Int     @id @default(autoincrement())
-  name             String? @unique
-  additional_price Int     @default(0)
+  id               Int     @id @default(autoincrement()) @map("id")
+  name             String? @unique @map("name")
+  additional_price Int     @default(0) @map("additional_price")
 
   transactions Transaction[]
 
@@ -220,16 +219,16 @@ model Shipping {
 }
 
 model Status {
-  id   Int    @id @default(autoincrement())
-  name String @unique
+  id   Int    @id @default(autoincrement()) @map("id")
+  name String @unique @map("name")
 
   @@map("status")
 }
 
 model RecommendedProduct {
-  productId     Int
-  recommendedId Int
-  created_at    DateTime @default(now())
+  productId     Int      @map("product_id")
+  recommendedId Int      @map("recommended_id")
+  created_at    DateTime @default(now()) @map("created_at")
 
   product     Product @relation("recommended_product", fields: [productId], references: [id], onDelete: Cascade)
   recommended Product @relation("recommended_recommended", fields: [recommendedId], references: [id], onDelete: Cascade)
@@ -239,14 +238,14 @@ model RecommendedProduct {
 }
 
 model Cart {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  productId  Int
-  sizeId     Int?
-  variantId  Int?
-  quantity   Int      @default(1)
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
+  id         Int      @id @default(autoincrement()) @map("id")
+  userId     Int      @map("user_id")
+  productId  Int      @map("product_id")
+  sizeId     Int?     @map("size_id")
+  variantId  Int?     @map("variant_id")
+  quantity   Int      @default(1) @map("quantity")
+  created_at DateTime @default(now()) @map("created_at")
+  updated_at DateTime @default(now()) @map("updated_at")
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product  @relation(fields: [productId], references: [id])
@@ -257,36 +256,36 @@ model Cart {
 }
 
 model Transaction {
-  id              Int      @id @default(autoincrement())
-  userId          Int
-  fullname        String?
-  email           String?
-  phone           String?
-  address         String?
-  paymentMethodId Int
-  shippingId      Int
-  invoice_number  String   @unique
-  total           Float
-  status          String?  @default("pending")
-  created_at      DateTime @default(now())
-  updated_at      DateTime @default(now())
+  id              Int      @id @default(autoincrement()) @map("id")
+  userId          Int      @map("user_id")
+  fullname        String?  @map("fullname")
+  email           String?  @map("email")
+  phone           String?  @map("phone")
+  address         String?  @map("address")
+  paymentMethodId Int      @map("payment_method_id")
+  shippingId      Int      @map("shipping_id")
+  invoice_number  String   @unique @map("invoice_number")
+  total           Float    @map("total")
+  status          String?  @default("pending") @map("status")
+  created_at      DateTime @default(now()) @map("created_at")
+  updated_at      DateTime @default(now()) @map("updated_at")
 
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  paymentMethod PaymentMethod     @relation(fields: [paymentMethodId], references: [id])
-  shipping      Shipping          @relation(fields: [shippingId], references: [id])
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  shipping      Shipping      @relation(fields: [shippingId], references: [id])
   items         TransactionItem[]
 
   @@map("transactions")
 }
 
 model TransactionItem {
-  id            Int   @id @default(autoincrement())
-  transactionId Int
-  productId     Int
-  variantId     Int?
-  sizeId        Int?
-  quantity      Int
-  subtotal      Float
+  id            Int      @id @default(autoincrement()) @map("id")
+  transactionId Int      @map("transaction_id")
+  productId     Int      @map("product_id")
+  variantId     Int?     @map("variant_id")
+  sizeId        Int?     @map("size_id")
+  quantity      Int      @map("quantity")
+  subtotal      Float    @map("subtotal")
 
   transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   product     Product     @relation(fields: [productId], references: [id])
