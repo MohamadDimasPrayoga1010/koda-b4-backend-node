@@ -24,7 +24,7 @@ async function main() {
     prisma.size.create({ data: { name: '250 gr', additional_price: 50000 } }),
     prisma.size.create({ data: { name: '500 gr', additional_price: 75000 } }),
   ]);
-s
+
   const productsData = [
     { title: 'Espresso Shot', description: 'Strong and concentrated espresso, perfect to energize your day', base_price: 15000, category_id: 1, stock: 40, is_favorite: true, rating: 4.3 },
     { title: 'Caramel Macchiato', description: 'Espresso with steamed milk, topped with caramel drizzle', base_price: 35000, category_id: 1, stock: 25, is_favorite: false, rating: 4.7 },
