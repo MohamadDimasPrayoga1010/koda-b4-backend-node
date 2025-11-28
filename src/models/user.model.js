@@ -1,3 +1,4 @@
+import { createPagination } from "../libs/pagination.js";
 import prisma from "../libs/prisma.js";
 import argon2 from "argon2";
 
@@ -22,25 +23,18 @@ export async function findUserByEmail(email) {
 
 
 export async function getAllUser({ page = 1, limit = 10, search = "" }) {
-
   const skip = (page - 1) * limit;
 
   const whereClause = search
     ? {
         OR: [
-          { fullname: { contains: search } },
-          { email: { contains: search } },
+          { fullname: {  contains: search.toLowerCase() } },
+          { email: {  contains: search.toLowerCase() } },
         ],
       }
     : {};
 
   const totalItems = await prisma.user.count({ where: whereClause });
-  const totalPages = Math.ceil(totalItems / limit);
-
-  const links = {
-    next: page < totalPages ? `/users?limit=${limit}&page=${page + 1}` : null,
-    back: page > 1 ? `/users?limit=${limit}&page=${page - 1}` : null,
-  };
 
   const users = await prisma.user.findMany({
     where: whereClause,
@@ -64,13 +58,20 @@ export async function getAllUser({ page = 1, limit = 10, search = "" }) {
     take: limit,
   });
 
+  const { pagination, links } = createPagination({
+    totalItems,
+    page,
+    limit,
+    baseUrl: "/users",
+    sortBy: null,
+  });
+
   return {
     data: users,
-    pagination: { page, limit, totalItems, totalPages },
+    pagination,
     links,
   };
 }
-
 
 export async function getUserById(id) {
   return await prisma.user.findUnique({
