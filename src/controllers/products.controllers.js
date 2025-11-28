@@ -14,16 +14,19 @@ import {
  * @summary Create a new product
  * @tags Product
  * @security bearerAuth
- * @param {string} title.form.required - Product title - multipart/form-data
- * @param {string} description.form - Product description - multipart/form-data
- * @param {number} base_price.form.required - Base price - multipart/form-data
- * @param {number} stock.form - Stock quantity - multipart/form-data
- * @param {string} categoryIds.form - JSON array of category IDs - multipart/form-data
- * @param {string} sizeIds.form - JSON array of size IDs - multipart/form-data
- * @param {string} variantIds.form - JSON array of variant IDs - multipart/form-data
- * @param {array<string>} images.form - Product images (multiple) - multipart/form-data - format: binary
+ * @consumes multipart/form-data
+ *
+ * @param {string} title.formData.required - Product title
+ * @param {string} description.formData - Product description
+ * @param {number} base_price.formData.required - Base price
+ * @param {number} stock.formData - Stock quantity
+ * @param {string} categoryIds.formData - JSON array of category IDs
+ * @param {string} sizeIds.formData - JSON array of size IDs
+ * @param {string} variantIds.formData - JSON array of variant IDs
+ * @param {file[]} images.formData - Product images (multiple files allowed, jpeg/jpg/png max 2MB)
+ *
  * @return {object} 201 - Product created successfully
- * @return {object} 400 - Missing required fields
+ * @return {object} 400 - Missing required fields or invalid file
  * @return {object} 401 - Unauthorized (invalid/missing token)
  * @return {object} 500 - Server error
  */
@@ -44,7 +47,7 @@ export async function createProductController(req, res) {
 
     if (files.length > 0) {
       for (const file of files) {
-        if (file.invalid || !allowedTypes.includes(file.mimetype)) {
+        if (!allowedTypes.includes(file.mimetype)) {
           return res.status(400).json({
             success: false,
             message: `File "${file.originalname}" tidak valid. Hanya jpeg, jpg, png yang diizinkan.`,
@@ -60,7 +63,25 @@ export async function createProductController(req, res) {
       }
     }
 
-    const product = await createProduct(data, files);
+    function parseIds(str, fieldName) {
+      if (!str) return [];
+      return str.split(",").map(id => {
+        const n = Number(id.trim());
+        if (isNaN(n)) throw new Error(`${fieldName} harus berupa angka`);
+        return n;
+      });
+    }
+
+    const categoryIds = parseIds(data.categoryIds, "categoryIds");
+    const sizeIds = parseIds(data.sizeIds, "sizeIds");
+    const variantIds = parseIds(data.variantIds, "variantIds");
+
+    const product = await createProduct({
+      ...data,
+      categoryIds,
+      sizeIds,
+      variantIds,
+    }, files);
 
     res.status(201).json({
       success: true,
@@ -313,28 +334,52 @@ export async function updateProductController(req, res) {
     if (isNaN(productId)) {
       return res.status(400).json({ 
         success: false, 
-        message: "Product ID tidak valid" });
+        message: "Product ID tidak valid" 
+      });
     }
 
     const body = req.body || {};
-    const files = req.files || []; 
-
+    const files = req.files || [];
 
     const title = body.title?.trim() || undefined;
     const description = body.description?.trim() || undefined;
     const stock = body.stock != null && body.stock !== "" ? Number(body.stock) : undefined;
     const base_price = body.base_price != null && body.base_price !== "" ? Number(body.base_price) : undefined;
 
-    let categoryIds, sizeIds, variantIds;
-    try {
-      categoryIds = body.categoryIds ? JSON.parse(body.categoryIds) : undefined;
-      sizeIds = body.sizeIds ? JSON.parse(body.sizeIds) : undefined;
-      variantIds = body.variantIds ? JSON.parse(body.variantIds) : undefined;
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        message: "categoryIds, sizeIds, variantIds harus dalam format JSON array",
-      });
+    let categoryIds = [];
+    if (body.categoryIds) {
+      if (Array.isArray(body.categoryIds)) {
+        categoryIds = body.categoryIds.map(Number).filter(n => !isNaN(n));
+      } else if (typeof body.categoryIds === "string") {
+        categoryIds = body.categoryIds
+          .split(",")
+          .map(v => Number(v.trim()))
+          .filter(n => !isNaN(n));
+      }
+    }
+
+    let sizeIds = [];
+    if (body.sizeIds) {
+      if (Array.isArray(body.sizeIds)) {
+        sizeIds = body.sizeIds.map(Number).filter(n => !isNaN(n));
+      } else if (typeof body.sizeIds === "string") {
+        sizeIds = body.sizeIds
+          .split(",")
+          .map(v => Number(v.trim()))
+          .filter(n => !isNaN(n));
+      }
+    }
+
+    let variantIds = [];
+    if (body.variantIds) {
+      if (Array.isArray(body.variantIds)) {
+        variantIds = body.variantIds.map(Number).filter(n => !isNaN(n));
+      } else if (typeof body.variantIds === "string") {
+        variantIds = body.variantIds
+          .split(",")
+          .map(v => Number(v.trim()))
+          .filter(n => !isNaN(n));
+      }
     }
 
     if (files.length > 0) {
@@ -362,32 +407,68 @@ export async function updateProductController(req, res) {
       description === undefined &&
       stock === undefined &&
       base_price === undefined &&
-      categoryIds === undefined &&
-      sizeIds === undefined &&
-      variantIds === undefined &&
+      categoryIds.length === 0 &&
+      sizeIds.length === 0 &&
+      variantIds.length === 0 &&
       files.length === 0
     ) {
       return res.status(400).json({ 
         success: false, 
-        message: "Tidak ada data untuk diupdate" });
+        message: "Tidak ada data untuk diupdate" 
+      });
     }
 
     const existingProduct = await getProductById(productId);
     if (!existingProduct) {
       return res.status(404).json({ 
         success: false, 
-        message: "Product tidak ditemukan" });
+        message: "Product tidak ditemukan" 
+      });
     }
 
-    const updatedProduct = await updateProduct(productId, {
-      title,
-      description,
-      stock,
-      base_price,
-      categoryIds,
-      sizeIds,
-      variantIds,
-      files,
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (stock !== undefined) updateData.stock = stock;
+    if (base_price !== undefined) updateData.base_price = base_price;
+
+    if (categoryIds.length > 0) {
+      updateData.categories = {
+        deleteMany: {},
+        create: categoryIds.map(catId => ({ category: { connect: { id: catId } } })),
+      };
+    }
+
+    if (sizeIds.length > 0) {
+      updateData.sizes = {
+        deleteMany: {},
+        create: sizeIds.map(sizeId => ({ size: { connect: { id: sizeId } } })),
+      };
+    }
+
+    if (variantIds.length > 0) {
+      updateData.variants = {
+        deleteMany: {},
+        create: variantIds.map(variantId => ({ variant: { connect: { id: variantId } } })),
+      };
+    }
+
+    if (files.length > 0) {
+      const imageData = files.map(file => ({ image: file.path }));
+      updateData.images = {
+        create: imageData,
+      };
+    }
+
+    const updatedProduct = await prisma.product.update({
+      where: { id: productId },
+      data: updateData,
+      include: {
+        categories: { include: { category: true } },
+        sizes: { include: { size: true } },
+        variants: { include: { variant: true } },
+        images: true,
+      },
     });
 
     res.status(200).json({
@@ -399,8 +480,10 @@ export async function updateProductController(req, res) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ 
-        success: false, 
-        message: "Gagal Update", error: err.message });
+      success: false, 
+      message: "Gagal Update", 
+      error: err.message 
+    });
   }
 }
 

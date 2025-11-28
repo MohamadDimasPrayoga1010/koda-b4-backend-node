@@ -1,11 +1,23 @@
 import prisma from "../libs/prisma.js";
 
 export async function createProduct(data, files) {
-  const { title, description, base_price, stock, categoryIds, sizeIds, variantIds } = data;
+  const { title, description, base_price, stock } = data;
 
-  const categories = categoryIds ? JSON.parse(categoryIds) : [];
-  const sizes = sizeIds ? JSON.parse(sizeIds) : [];
-  const variants = variantIds ? JSON.parse(variantIds) : [];
+  const parseIds = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map(Number).filter(n => !isNaN(n));
+    if (typeof value === "string") {
+      return value
+        .split(",")
+        .map(id => Number(id.trim()))
+        .filter(n => !isNaN(n));
+    }
+    return [];
+  };
+
+  const categories = parseIds(data.categoryIds);
+  const sizes = parseIds(data.sizeIds);
+  const variants = parseIds(data.variantIds);
 
   const imageData = files ? files.map(file => ({ image: file.path })) : [];
 
@@ -111,24 +123,37 @@ export async function updateProduct(id, data) {
   if (data.stock !== undefined) updateData.stock = Number(data.stock);
   if (data.base_price !== undefined) updateData.base_price = Number(data.base_price);
 
-  if (Array.isArray(data.categoryIds)) {
+  const parseIds = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.map(Number).filter(n => !isNaN(n));
+    if (typeof value === "string") {
+      return value.split(",").map(v => Number(v.trim())).filter(n => !isNaN(n));
+    }
+    return [];
+  };
+
+  const categories = parseIds(data.categoryIds);
+  const sizes = parseIds(data.sizeIds);
+  const variants = parseIds(data.variantIds);
+
+  if (categories.length > 0) {
     updateData.categories = {
       deleteMany: {},
-      create: data.categoryIds.map(catId => ({ category: { connect: { id: Number(catId) } } })),
+      create: categories.map(catId => ({ category: { connect: { id: catId } } })),
     };
   }
 
-  if (Array.isArray(data.sizeIds)) {
+  if (sizes.length > 0) {
     updateData.sizes = {
       deleteMany: {},
-      create: data.sizeIds.map(sizeId => ({ size: { connect: { id: Number(sizeId) } } })),
+      create: sizes.map(sizeId => ({ size: { connect: { id: sizeId } } })),
     };
   }
 
-  if (Array.isArray(data.variantIds)) {
+  if (variants.length > 0) {
     updateData.variants = {
       deleteMany: {},
-      create: data.variantIds.map(variantId => ({ variant: { connect: { id: Number(variantId) } } })),
+      create: variants.map(variantId => ({ variant: { connect: { id: variantId } } })),
     };
   }
 
