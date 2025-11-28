@@ -41,17 +41,24 @@ export async function uploadProductImage(productId, filename){
     })
 }
 
-export async function getAllProducts({ search, page = 1, limit = 10 }) {
+export async function getAllProducts({ search, page = 1, limit = 10, sort }) {
   const skip = (page - 1) * limit;
 
   const where = search
     ? {
         title: {
-          contains: search,
-          mode: "insensitive",
+          contains: search.toLowerCase(),
         },
       }
     : {};
+
+  let orderBy = { created_at: "desc" };
+
+  if (sort === "termurah") {
+    orderBy = { base_price: "asc" }; 
+  } else if (sort === "termahal") {
+    orderBy = { base_price: "desc" }; 
+  }
 
   const totalItems = await prisma.product.count({ where });
 
@@ -59,7 +66,7 @@ export async function getAllProducts({ search, page = 1, limit = 10 }) {
     where,
     skip,
     take: Number(limit),
-    orderBy: { created_at: "desc" },
+    orderBy,
     include: {
       images: true,
       categories: { include: { category: true } },
