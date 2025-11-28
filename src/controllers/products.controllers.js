@@ -1,3 +1,4 @@
+import { createPagination } from "../libs/pagination.js";
 import prisma from "../libs/prisma.js";
 import {
   createProduct,
@@ -7,7 +8,6 @@ import {
   updateProduct,
   uploadProductImage,
 } from "../models/products.models.js";
-
 
 /**
  * POST /products
@@ -21,7 +21,7 @@ import {
  * @param {string} categoryIds.form - JSON array of category IDs - multipart/form-data
  * @param {string} sizeIds.form - JSON array of size IDs - multipart/form-data
  * @param {string} variantIds.form - JSON array of variant IDs - multipart/form-data
- * @param {file} images.form - Product images (multiple) - multipart/form-data
+ * @param {array<string>} images.form - Product images (multiple) - multipart/form-data - format: binary
  * @return {object} 201 - Product created successfully
  * @return {object} 400 - Missing required fields
  * @return {object} 401 - Unauthorized (invalid/missing token)
@@ -149,9 +149,23 @@ export async function uploadProductImageController(req, res) {
   }
 }
 
+/**
+ * GET /products
+ * @summary Get all products with pagination, search & sorting
+ * @tags Product
+ * @security bearerAuth
+ *
+ * @param {string} search.query - Search by product title (optional)
+ * @param {number} page.query - Page number (default: 1)
+ * @param {number} limit.query - Items per page (default: 10)
+ * @param {string} sort.query - Sort products by price: "termurah" (harga termurah) "termahal" (harga termahal) (optional)
+ *
+ * @return {object} 200 - List of products
+ * @return {object} 500 - Failed to fetch products
+ */
 export async function getAllProductsController(req, res) {
   try {
-    let { search = "", page = 1, limit = 10 } = req.query;
+    let { search = "", page = 1, limit = 10, sort = "" } = req.query;
 
     page = Number(page);
     limit = Number(limit);
@@ -159,13 +173,22 @@ export async function getAllProductsController(req, res) {
     if (isNaN(limit) || limit < 1) limit = 10;
     if (typeof search !== "string") search = "";
 
-    const { products, totalItems } = await getAllProducts({ search, page, limit });
+    const { products, totalItems } = await getAllProducts({
+      search,
+      page,
+      limit,
+      sort,
+    });
 
-    const totalPages = Math.ceil(totalItems / limit);
-    const nextPage = page < totalPages ? page + 1 : null;
-    const backPage = page > 1 ? page - 1 : null;
+    const pagination = createPagination({
+      totalItems,
+      page,
+      limit,
+      baseUrl: "/products",
+      sort,
+    });
 
-    const data = products.map(p => ({
+    const data = products.map((p) => ({
       id: p.id,
       title: p.title,
       description: p.description,
@@ -173,11 +196,11 @@ export async function getAllProductsController(req, res) {
       stock: p.stock,
       categoryId: p.categories[0]?.category?.id || null,
       image: p.images[0]?.image || null,
-      sizes: p.sizes.map(s => ({
+      sizes: p.sizes.map((s) => ({
         id: s.size.id,
         name: s.size.name,
       })),
-      variants: p.variants.map(v => ({
+      variants: p.variants.map((v) => ({
         id: v.variant.id,
         name: v.variant.name,
         additional_price: v.variant.additional_price,
@@ -189,18 +212,10 @@ export async function getAllProductsController(req, res) {
     res.status(200).json({
       success: true,
       message: "Filtered products fetched successfully",
-      pagination: {
-        page,
-        limit,
-        totalItems,
-        totalPages,
-      },
-      links: {
-        next: nextPage ? `/products?limit=${limit}&page=${nextPage}` : null,
-        back: backPage ? `/products?limit=${limit}&page=${backPage}` : null,
-      },
+      ...pagination,
       data,
     });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({
@@ -211,6 +226,18 @@ export async function getAllProductsController(req, res) {
   }
 }
 
+/**
+ * GET /products/{id}
+ * @summary Get product detail by ID
+ * @tags Product
+ * @security bearerAuth
+ *
+ * @param {number} id.path - Product ID
+ *
+ * @return {object} 200 - Product detail
+ * @return {object} 404 - Product not found
+ * @return {object} 500 - Failed to fetch product
+ */
 export async function getProductByIdController(req, res) {
   try {
     const { id } = req.params;
@@ -256,6 +283,30 @@ export async function getProductByIdController(req, res) {
   }
 }
 
+/**
+ * PATCH /products/{id}
+ * @summary Update product
+ * @tags Product
+ * @security bearerAuth
+ *
+ * @param {number} id.path - Product ID
+ *
+ * @param {string} title.formData - Product title (optional)
+ * @param {string} description.formData - Product description (optional)
+ * @param {number} stock.formData - Product stock (optional)
+ * @param {number} base_price.formData - Base price (optional)
+ *
+ * @param {string} categoryIds.formData - Array of category IDs (JSON string) - optional
+ * @param {string} sizeIds.formData - Array of size IDs (JSON string) - optional
+ * @param {string} variantIds.formData - Array of variant IDs (JSON string) - optional
+ *
+ * @param {array<string>} files.formData - Product images (jpg, jpeg, png) - optional
+ *
+ * @return {object} 200 - Product updated successfully
+ * @return {object} 400 - Invalid input or no data to update
+ * @return {object} 404 - Product not found
+ * @return {object} 500 - Failed to update product
+ */
 export async function updateProductController(req, res) {
   try {
     const productId = Number(req.params.id);
@@ -354,6 +405,19 @@ export async function updateProductController(req, res) {
 }
 
 
+/**
+ * DELETE /products/{id}
+ * @summary Delete product by ID
+ * @tags Product
+ * @security bearerAuth
+ *
+ * @param {number} id.path - Product ID
+ *
+ * @return {object} 200 - Product deleted successfully
+ * @return {object} 400 - Invalid product ID
+ * @return {object} 404 - Product not found
+ * @return {object} 500 - Failed to delete product
+ */
 
 export async function deleteProductController(req, res) {
   try {
