@@ -1,10 +1,11 @@
-import { use } from "react";
 import {
   createUserAdmin,
   deleteUserModel,
   editUserModel,
   getAllUser,
   getUserById,
+  getUserProfile,
+  updateUserProfile,
 } from "../models/user.model.js";
 
 
@@ -106,6 +107,19 @@ export async function getUserByIdController(req, res) {
   }
 }
 
+
+/**
+ * Create user request body
+ * @typedef {object} CreateUserRequest
+ * @property {string} image - User profile photo - binary
+ * @property {string} fullname.required - Full name of user
+ * @property {string} email.required - Email of user
+ * @property {string} password.required - Password
+ * @property {string} phone - Phone number
+ * @property {string} address - Address
+ * @property {string} role - Role of user - enum:user,admin
+ */
+
 /**
  * POST /users
  * @summary Create a new user (Admin only)
@@ -113,15 +127,7 @@ export async function getUserByIdController(req, res) {
  * @security bearerAuth
  *
  * @description Membuat user baru dengan optional upload image (jpeg/jpg/png max 2MB).
- *
- * @param {string} fullname.formData.required - Fullname user
- * @param {string} email.formData.required - Email user
- * @param {string} password.formData.required - Password user
- * @param {string} phone.formData - Nomor telepon user (optional)
- * @param {string} address.formData - Alamat user (optional)
- * @param {string} role.formData - Role user (default: user)
- * @param {file} image.formData - Foto profil (jpeg/jpg/png max 2MB)
- *
+ * @param {CreateUserRequest} request.body.required - User data - multipart/form-data
  * @return {object} 201 - User berhasil dibuat
  * @return {object} 400 - Validasi gagal (input salah / file invalid)
  * @return {object} 500 - Gagal membuat user
@@ -184,27 +190,7 @@ export async function addUserController(req, res) {
   }
 }
 
-/**
- * PATCH /users/{id}
- * @summary Update user data (fullname, email, password, phone, address, image)
- * @tags User
- * @security bearerAuth
- * @consumes multipart/form-data
- *
- * @param {number} id.path.required - ID user yang ingin diperbarui
- *
- * @param {string} fullname.formData - Fullname user
- * @param {string} email.formData - Email user
- * @param {string} password.formData - Password baru (optional)
- * @param {string} phone.formData - Nomor telepon user
- * @param {string} address.formData - Alamat user
- * @param {file} image.formData - Foto profil baru (jpeg/jpg/png max 2MB)
- *
- * @return {object} 200 - User berhasil diperbarui
- * @return {object} 400 - Validasi gagal (tipe file salah / ukuran besar / input tidak valid)
- * @return {object} 404 - User tidak ditemukan
- * @return {object} 500 - Gagal memperbarui user
- */
+
 export async function editUserController(req, res) {
   try {
     const userId = parseInt(req.params.id);
@@ -285,6 +271,146 @@ export async function deleteUserController(req, res) {
     res.status(500).json({
       success: false,
       message: "Gagal menghapus user",
+      error: err.message,
+    });
+  }
+}
+
+
+/**
+ * GET /users/profile
+ * @summary Get logged-in user's profile
+ * @tags User
+ * @security bearerAuth
+ * @return {object} 200 - Profile fetched successfully
+ * @return {object} 401 - Unauthorized (invalid/missing token)
+ * @return {object} 404 - Profile not found
+ * @return {object} 500 - Server error
+ */
+export async function getUserProfileController(req, res){
+  try {
+    const userId = req.jwtPayload.id;
+
+    const profile = await getUserProfile(userId);
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile tidak ditemukan",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Profile fetched successfully",
+      data: {
+        id: profile.id,
+        fullname: profile.fullname,
+        email: profile.email,
+        phone: profile.profile?.phone ?? null,
+        address: profile.profile?.address ?? null,
+        image: profile.profile?.image ?? null,
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Terjadi kesalahan server",
+      error: err.message,
+    });
+  }
+}
+
+
+/**
+ * Update logged-in user profile
+ * @typedef {object} UpdateUserProfileRequest
+ * @property {string} fullname - Full name of user 
+ * @property {string} email - Email of user 
+ * @property {string} phone - Phone number 
+ * @property {string} address - Address 
+ * @property {string} image - Profile photo - binary 
+ */
+
+/**
+ * PATCH /users/profile
+ * @summary Update logged-in user's profile (optional fields)
+ * @tags User
+ * @security bearerAuth
+ *
+ * @description Update profile for the logged-in user. All fields are optional. You can upload a profile photo (jpeg/jpg/png, max 2MB) or update any combination of fullname, email, phone, address.
+ * @param {UpdateUserProfileRequest} request.body.required - User profile data - multipart/form-data
+ * @return {object} 200 - Profile updated successfully
+ * @return {object} 400 - Invalid input / file too large / invalid file type
+ * @return {object} 401 - Unauthorized (invalid/missing token)
+ * @return {object} 500 - Server error
+ */
+export async function updateUserProfileController(req, res) {
+  try {
+    const userId = req.jwtPayload.id;
+    const body = req.body || {}; 
+    const file = req.file;
+
+    const fullname = body.fullname;
+    const email = body.email;
+    const phone = body.phone;
+    const address = body.address;
+
+    if (!fullname && !email && !phone && !address && !file) {
+      return res.status(400).json({
+        success: false,
+        message: "Tidak ada data untuk diupdate",
+      });
+    }
+
+    if (file) {
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+      const maxSize = 2 * 1024 * 1024; 
+      if (!allowedTypes.includes(file.mimetype)) {
+        return res.status(400).json({
+          success: false,
+          message: "File type tidak valid. Hanya jpeg, jpg, png yang diperbolehkan.",
+        });
+      }
+      if (file.size > maxSize) {
+        return res.status(400).json({
+          success: false,
+          message: "Ukuran file terlalu besar. Maksimal 2MB.",
+        });
+      }
+    }
+
+    const userData = fullname || email ? { ...(fullname && { fullname }), ...(email && { email }) } : {};
+    const profileData = {
+      ...(phone && { phone }),
+      ...(address && { address }),
+      ...(file && { image: file.path }),
+    };
+
+    const updatedProfile = await updateUserProfile(userId, userData, profileData);
+
+    res.status(200).json({
+      success: true,
+      message: "Profile berhasil diupdate",
+      data: {
+        id: updatedProfile.id,
+        fullname: updatedProfile.fullname,
+        email: updatedProfile.email,
+        phone: updatedProfile.phone,
+        address: updatedProfile.address,
+        image: updatedProfile.image,
+        createdAt: updatedProfile.created_at,
+        updatedAt: updatedProfile.updated_at,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Gagal update profile",
       error: err.message,
     });
   }

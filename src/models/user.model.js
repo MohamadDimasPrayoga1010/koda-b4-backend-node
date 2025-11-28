@@ -178,3 +178,54 @@ export async function deleteUserModel(userId) {
 
   return deletedUser;
 }
+
+export async function getUserProfile(userId){
+ return await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      fullname: true,
+      email: true,
+      profile: {
+        select: {
+          phone: true,
+          address: true,
+          image: true,
+        },
+      },
+      created_at: true,
+      updated_at: true,
+    },
+  });
+}
+
+export async function updateUserProfile(userId, userData, profileData) {
+
+  const updateUser = await prisma.user.update({
+    where: { id: userId },
+    data: userData,
+  });
+
+
+  let updateProfile;
+  const existingProfile = await prisma.profile.findUnique({ where: { userId } });
+  if (existingProfile) {
+    updateProfile = await prisma.profile.update({
+      where: { userId },
+      data: profileData,
+    });
+  } else {
+    updateProfile = await prisma.profile.create({
+      data: { userId, ...profileData },
+    });
+  }
+
+  return {
+    ...updateUser,
+    phone: updateProfile.phone || null,
+    address: updateProfile.address || null,
+    image: updateProfile.image || null,
+    created_at: updateUser.created_at,
+    updated_at: updateUser.updated_at,
+  };
+}
