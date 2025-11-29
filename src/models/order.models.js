@@ -87,3 +87,102 @@ export async function deleteCartItem(userId, cartId) {
   await prisma.cart.delete({ where: { id: cartId } });
   return true;
 }
+
+export async function createTransaction(userId, { phone, address, paymentMethodId, shippingId }) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      profile: true,
+      carts: {
+        include: { product: true, variant: true, size: true },
+      },
+    },
+  });
+
+  if (!user) throw new Error("User not found");
+
+  const fullname = user.fullname;
+  const email = user.email;
+  const userPhone = user.profile?.phone || phone;
+  const userAddress = user.profile?.address || address;
+
+  if (!userPhone || !userAddress) throw new Error("Phone and address required");
+
+  const cartItems = user.carts;
+
+  if (cartItems.length === 0) {
+    throw new Error("Cart is empty");
+  }
+
+  const total = cartItems.reduce((sum, item) => {
+    const basePrice = item.product.base_price;
+    const variantPrice = item.variant?.additional_price || 0;
+    return sum + (basePrice + variantPrice) * item.quantity;
+  }, 0);
+
+  const invoiceNumber = `INV-${new Date().toISOString().replace(/\D/g,'').slice(0,14)}-${userId}`;
+
+  const transaction = await prisma.transaction.create({
+    data: {
+      userId,
+      fullname,
+      email,
+      phone: userPhone,
+      address: userAddress,
+      paymentMethodId,
+      shippingId,
+      invoice_number: invoiceNumber,
+      total,
+      status: "OnProgres",
+      items: {
+        create: cartItems.map(item => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          sizeId: item.sizeId,
+          quantity: item.quantity,
+          subtotal: (item.product.base_price + (item.variant?.additional_price || 0)) * item.quantity,
+        })),
+      },
+    },
+    include: {
+      items: {
+        include: {
+          product: { select: { title: true } },
+          variant: { select: { name: true } },
+          size: { select: { name: true } },
+        },
+      },
+      paymentMethod: true,
+      shipping: true,
+    },
+  });
+
+  await prisma.cart.deleteMany({ where: { userId } });
+
+  return {
+    id: transaction.id,
+    userId: transaction.userId,
+    fullname: transaction.fullname,
+    email: transaction.email,
+    phone: transaction.phone,
+    address: transaction.address,
+    paymentMethodName: transaction.paymentMethod.name,
+    shippingName: transaction.shipping.name,
+    invoiceNumber: transaction.invoice_number,
+    total: transaction.total,
+    status: transaction.status,
+    createdAt: transaction.created_at,
+    updatedAt: transaction.updated_at,
+    items: transaction.items.map(i => ({
+      id: i.id,
+      productId: i.productId,
+      productName: i.product.title,
+      quantity: i.quantity,
+      variantId: i.variantId,
+      variantName: i.variant?.name || null,
+      sizeName: i.size?.name || null,
+      subtotal: i.subtotal,
+    })),
+  };
+}
+

@@ -1,4 +1,4 @@
-import { addToCartModel, deleteCartItem, getCartItems } from "../models/order.models.js";
+import { addToCartModel, createTransaction, deleteCartItem, getCartItems } from "../models/order.models.js";
 
 
 /**
@@ -56,10 +56,21 @@ export async function addToCart (req, res) {
  * @return {object} 500 - Failed to fetch cart items
  */
 export async function getCart(req, res) {
-    try {
+  try {
     const { id: userId } = req.jwtPayload;
 
     const items = await getCartItems(userId);
+
+    if (items.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Cart is empty",
+        data: {
+          items: [],
+          total: 0,
+        },
+      });
+    }
 
     const total = items.reduce((sum, item) => sum + item.subtotal, 0);
 
@@ -80,7 +91,6 @@ export async function getCart(req, res) {
     });
   }
 }
-
 
 /**
  * DELETE /cart/{id}
@@ -130,4 +140,44 @@ export async function deleteCart (req, res) {
   }
 };
 
+/**
+ * POST /transaction
+ * @summary Create a new transaction from cart
+ * @tags Transaction
+ * @security bearerAuth
+ *
+ * @param {object} request.body.required - Transaction info (phone & address optional if profile exists)
+ * @param {string} request.body.phone - Phone number (required if profile empty)
+ * @param {string} request.body.address - Address (required if profile empty)
+ * @param {number} request.body.paymentMethodId.required - Payment method ID
+ * @param {number} request.body.shippingId.required - Shipping ID
+ *
+ * @return {object} 200 - Transaction created successfully
+ * @return {object} 400 - Phone and address required
+ * @return {object} 500 - Failed to create transaction
+ */
+export const createTransactionController = async (req, res) => {
+  try {
+    const userId = req.jwtPayload.id;
+    const { phone, address, paymentMethodId, shippingId } = req.body;
 
+    const transaction = await createTransaction(userId, { phone, address, paymentMethodId, shippingId });
+
+    res.status(200).json({
+      success: true,
+      message: "Transaction created successfully",
+      data: transaction,
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message:
+        err.message === "Phone and address required"
+          ? "Phone and address must be filled"
+          : err.message === "Cart is empty"
+          ? "Cart is empty, cannot create transaction"
+          : "Failed to create transaction",
+      error: err.message,
+    });
+  }
+};
