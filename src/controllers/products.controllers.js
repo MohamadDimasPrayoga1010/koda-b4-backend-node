@@ -3,6 +3,7 @@ import prisma from "../libs/prisma.js";
 import {
   createProduct,
   deleteProduct,
+  detailProductModel,
   filterProductsModel,
   getAllProducts,
   getFavoriteProducts,
@@ -565,7 +566,7 @@ export async function getFavoriteProduct(req, res) {
 }
 
 
-export const filterProducts = async (req, res) => {
+export async function filterProducts (req, res) {
   try {
     const {
       search = "",
@@ -621,5 +622,43 @@ export const filterProducts = async (req, res) => {
 };
 
 
+/**
+ * GET /products/detail-product/{id}
+ * @summary Get product detail by ID
+ * @tags Product
+ * @security bearerAuth
+ *
+ * @param {number} id.path - Product ID
+ *
+ * @return {object} 200 - Product detail
+ * @return {object} 404 - Product not found
+ * @return {object} 500 - Failed to fetch product
+ */
+export async function detailProduct(req, res) {
+  try {
+      const { id } = req.params;
+  
+      const product = await detailProductModel(Number(id));
+  
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found",
+        });
+      }
+  
+      res.status(200).json({
+        success: true,
+        message: "Product detail fetched successfully",
+        data: product,
+      });
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        message: "Internal server error",
+        error: err.message,
+      });
+    }
+}
 
 

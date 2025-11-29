@@ -5,12 +5,12 @@ export async function createProduct(data, files) {
 
   const parseIds = (value) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(Number).filter(n => !isNaN(n));
+    if (Array.isArray(value)) return value.map(Number).filter((n) => !isNaN(n));
     if (typeof value === "string") {
       return value
         .split(",")
-        .map(id => Number(id.trim()))
-        .filter(n => !isNaN(n));
+        .map((id) => Number(id.trim()))
+        .filter((n) => !isNaN(n));
     }
     return [];
   };
@@ -19,7 +19,7 @@ export async function createProduct(data, files) {
   const sizes = parseIds(data.sizeIds);
   const variants = parseIds(data.variantIds);
 
-  const imageData = files ? files.map(file => ({ image: file.path })) : [];
+  const imageData = files ? files.map((file) => ({ image: file.path })) : [];
 
   const product = await prisma.product.create({
     data: {
@@ -27,9 +27,13 @@ export async function createProduct(data, files) {
       description,
       base_price: Number(base_price),
       stock: stock ? Number(stock) : 0,
-      categories: { create: categories.map(id => ({ category: { connect: { id } } })) },
-      sizes: { create: sizes.map(id => ({ size: { connect: { id } } })) },
-      variants: { create: variants.map(id => ({ variant: { connect: { id } } })) },
+      categories: {
+        create: categories.map((id) => ({ category: { connect: { id } } })),
+      },
+      sizes: { create: sizes.map((id) => ({ size: { connect: { id } } })) },
+      variants: {
+        create: variants.map((id) => ({ variant: { connect: { id } } })),
+      },
       images: { create: imageData },
     },
     include: {
@@ -43,14 +47,13 @@ export async function createProduct(data, files) {
   return product;
 }
 
-
-export async function uploadProductImage(productId, filename){
-    return await prisma.productImage.create({
-        data:{
-            productId,
-            image: filename
-        }
-    })
+export async function uploadProductImage(productId, filename) {
+  return await prisma.productImage.create({
+    data: {
+      productId,
+      image: filename,
+    },
+  });
 }
 
 export async function getAllProducts({ search, page = 1, limit = 10, sort }) {
@@ -67,9 +70,9 @@ export async function getAllProducts({ search, page = 1, limit = 10, sort }) {
   let orderBy = { created_at: "desc" };
 
   if (sort === "termurah") {
-    orderBy = { base_price: "asc" }; 
+    orderBy = { base_price: "asc" };
   } else if (sort === "termahal") {
-    orderBy = { base_price: "desc" }; 
+    orderBy = { base_price: "desc" };
   }
 
   const totalItems = await prisma.product.count({ where });
@@ -97,23 +100,22 @@ export async function getProductById(id) {
       images: true,
       categories: {
         include: {
-          category: true, 
+          category: true,
         },
       },
       sizes: {
         include: {
-          size: true, 
+          size: true,
         },
       },
       variants: {
         include: {
-          variant: true, 
+          variant: true,
         },
       },
     },
   });
 }
-
 
 export async function updateProduct(id, data) {
   const updateData = {};
@@ -121,13 +123,17 @@ export async function updateProduct(id, data) {
   if (data.title !== undefined) updateData.title = data.title;
   if (data.description !== undefined) updateData.description = data.description;
   if (data.stock !== undefined) updateData.stock = Number(data.stock);
-  if (data.base_price !== undefined) updateData.base_price = Number(data.base_price);
+  if (data.base_price !== undefined)
+    updateData.base_price = Number(data.base_price);
 
   const parseIds = (value) => {
     if (!value) return [];
-    if (Array.isArray(value)) return value.map(Number).filter(n => !isNaN(n));
+    if (Array.isArray(value)) return value.map(Number).filter((n) => !isNaN(n));
     if (typeof value === "string") {
-      return value.split(",").map(v => Number(v.trim())).filter(n => !isNaN(n));
+      return value
+        .split(",")
+        .map((v) => Number(v.trim()))
+        .filter((n) => !isNaN(n));
     }
     return [];
   };
@@ -139,26 +145,30 @@ export async function updateProduct(id, data) {
   if (categories.length > 0) {
     updateData.categories = {
       deleteMany: {},
-      create: categories.map(catId => ({ category: { connect: { id: catId } } })),
+      create: categories.map((catId) => ({
+        category: { connect: { id: catId } },
+      })),
     };
   }
 
   if (sizes.length > 0) {
     updateData.sizes = {
       deleteMany: {},
-      create: sizes.map(sizeId => ({ size: { connect: { id: sizeId } } })),
+      create: sizes.map((sizeId) => ({ size: { connect: { id: sizeId } } })),
     };
   }
 
   if (variants.length > 0) {
     updateData.variants = {
       deleteMany: {},
-      create: variants.map(variantId => ({ variant: { connect: { id: variantId } } })),
+      create: variants.map((variantId) => ({
+        variant: { connect: { id: variantId } },
+      })),
     };
   }
 
   if (Array.isArray(data.files) && data.files.length > 0) {
-    const imageData = data.files.map(file => ({ image: file.path }));
+    const imageData = data.files.map((file) => ({ image: file.path }));
     updateData.images = {
       create: imageData,
     };
@@ -175,8 +185,6 @@ export async function updateProduct(id, data) {
     },
   });
 }
-
-
 
 export async function deleteProduct(id) {
   await prisma.productCategory.deleteMany({ where: { productId: id } });
@@ -280,8 +288,103 @@ export async function filterProductsModel({
     totalPages: Math.ceil(totalData / limit),
     currentPage: page,
     limit,
-    where, 
+    where,
   };
 }
 
+export async function detailProductModel(productId) {
+ const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      base_price: true,
+      stock: true,
+      category_id: true,
+      created_at: true,
+      updated_at: true,
+      variants: {
+        select: {
+          id: true,
+          variant: {
+            select: { id: true, name: true, additional_price: true },
+          },
+        },
+      },
+      sizes: {
+        select: {
+          size: { select: { id: true, name: true, additional_price: true } },
+        },
+      },
+      images: {
+        where: { deleted_at: null },
+        select: { productId: true, image: true, updated_at: true },
+      },
+      recommendedProducts: {
+        select: {
+          recommended: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              base_price: true,
+              stock: true,
+              category_id: true,
+              created_at: true,
+              updated_at: true,
+              variants: {
+                select: {
+                  id: true,
+                  variant: {
+                    select: { id: true, name: true, additional_price: true },
+                  },
+                },
+              },
+              sizes: {
+                select: {
+                  size: { select: { id: true, name: true, additional_price: true } },
+                },
+              },
+              images: {
+                where: { deleted_at: null },
+                select: { productId: true, image: true, updated_at: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 
+  if (!product) return null;
+
+  const formattedSizes = product.sizes.map((s) => s.size);
+
+  const formattedVariants = product.variants.map((v) => v.variant);
+
+  const recommended = product.recommendedProducts.map((r) => {
+    const rec = r.recommended;
+    return {
+      ...rec,
+      variants: rec.variants.map((v) => v.variant),
+      sizes: rec.sizes.map((s) => s.size),
+      images: rec.images,
+    };
+  });
+
+  return {
+    id: product.id,
+    title: product.title,
+    description: product.description,
+    basePrice: product.base_price,
+    stock: product.stock,
+    categoryId: product.category_id,
+    variants: formattedVariants, 
+    sizes: formattedSizes,
+    images: product.images,
+    recommended,
+    createdAt: product.created_at,
+    updatedAt: product.updated_at,
+  };
+}
