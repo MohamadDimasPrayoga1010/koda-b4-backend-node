@@ -189,3 +189,18 @@ export async function deleteProduct(id) {
   });
 }
 
+export async function getFavoriteProducts() {
+  return prisma.product.findMany({
+    where: { is_favorite: true },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      base_price: true,
+      images: {
+        take: 1,
+        select: { image: true },
+      },
+    },
+  });
+}

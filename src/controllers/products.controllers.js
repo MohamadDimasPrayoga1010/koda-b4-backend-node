@@ -4,6 +4,7 @@ import {
   createProduct,
   deleteProduct,
   getAllProducts,
+  getFavoriteProducts,
   getProductById,
   updateProduct,
   uploadProductImage,
@@ -501,7 +502,6 @@ export async function updateProductController(req, res) {
  * @return {object} 404 - Product not found
  * @return {object} 500 - Failed to delete product
  */
-
 export async function deleteProductController(req, res) {
   try {
     const productId = Number(req.params.id);
@@ -524,6 +524,40 @@ export async function deleteProductController(req, res) {
     res.status(500).json({
       success: false,
       message: "Gagal menghapus product",
+      error: err.message,
+    });
+  }
+}
+
+/**
+ * GET /products/favorite-product
+ * @summary Get list of user's favorite products
+ * @tags Products
+ * @return {object} 200 - Successfully retrieved favorites
+ * @return {object} 401 - Unauthorized (invalid/missing token)
+ * @return {object} 500 - Server error
+ */
+export async function getFavoriteProduct(req, res) {
+  try {
+    const product = await getFavoriteProducts();
+
+    const responseProducts = product.map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      basePrice: p.base_price,
+      image: p.images?.[0]?.image || null,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: "Data produk favorit berhasil diambil",
+      data: responseProducts,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Gagal mengambil favorite product",
       error: err.message,
     });
   }
