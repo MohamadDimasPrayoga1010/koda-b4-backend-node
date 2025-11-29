@@ -3,6 +3,7 @@ import prisma from "../libs/prisma.js";
 import {
   createProduct,
   deleteProduct,
+  filterProductsModel,
   getAllProducts,
   getFavoriteProducts,
   getProductById,
@@ -562,3 +563,63 @@ export async function getFavoriteProduct(req, res) {
     });
   }
 }
+
+
+export const filterProducts = async (req, res) => {
+  try {
+    const {
+      search = "",
+      category,
+      sort = "asc",
+      page = 1,
+      limit = 10,
+      price_min,
+      price_max,
+    } = req.query;
+
+    const result = await filterProductsModel({
+      search,
+      category,
+      sort,
+      page: Number(page),
+      limit: Number(limit),
+      price_min,
+      price_max,
+    });
+
+    const responseProducts = result.products.map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      basePrice: p.base_price,
+      categories: p.categories.map((c) => ({
+        categoryId: c.categoryId,
+        name: c.category?.name || null,
+      })),
+      image: p.images?.[0]?.image || null,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: "Data produk berhasil difilter",
+      pagination: {
+        totalData: result.totalData,
+        totalPages: result.totalPages,
+        currentPage: result.currentPage,
+        limit: result.limit,
+      },
+      data: responseProducts,
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Gagal mengambil data produk",
+      error: err.message,
+    });
+  }
+};
+
+
+
+

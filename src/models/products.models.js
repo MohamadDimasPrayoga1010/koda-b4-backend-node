@@ -204,3 +204,84 @@ export async function getFavoriteProducts() {
     },
   });
 }
+
+export async function filterProductsModel({
+  search,
+  category,
+  sort,
+  page,
+  limit,
+  price_min,
+  price_max,
+}) {
+  const skip = (page - 1) * limit;
+  const AND = [];
+
+  AND.push({ deleted_at: null });
+
+  if (search && search.trim() !== "") {
+    AND.push({
+      OR: [
+        { title: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (category && !isNaN(Number(category))) {
+    AND.push({
+      categories: {
+        some: {
+          categoryId: Number(category),
+        },
+      },
+    });
+  }
+
+  if (price_min || price_max) {
+    const priceFilter = {};
+    if (price_min) priceFilter.gte = Number(price_min);
+    if (price_max) priceFilter.lte = Number(price_max);
+
+    AND.push({ base_price: priceFilter });
+  }
+
+  const where = AND.length > 0 ? { AND } : {};
+
+  const totalData = await prisma.product.count({ where });
+
+  const products = await prisma.product.findMany({
+    where,
+    skip,
+    take: limit,
+    orderBy: { base_price: sort === "desc" ? "desc" : "asc" },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      base_price: true,
+      categories: {
+        select: {
+          categoryId: true,
+          category: { select: { name: true } },
+        },
+      },
+      images: {
+        where: { deleted_at: null },
+        take: 1,
+        select: { image: true },
+      },
+    },
+  });
+
+  return {
+    products,
+    totalData,
+    totalPages: Math.ceil(totalData / limit),
+    currentPage: page,
+    limit,
+    where, 
+  };
+}
+
+
