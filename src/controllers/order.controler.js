@@ -1,4 +1,5 @@
-import { addToCartModel, createTransaction, deleteCartItem, getCartItems } from "../models/order.models.js";
+import { createPagination } from "../libs/pagination.js";
+import { addToCartModel, createTransaction, deleteCartItem, getCartItems, getTransactionDetailModel, getTransactionHistoryModel } from "../models/order.models.js";
 
 
 /**
@@ -17,7 +18,7 @@ import { addToCartModel, createTransaction, deleteCartItem, getCartItems } from 
  * @return {object} 400 - Bad request
  * @return {object} 500 - Failed to add items
  */
-export async function addToCart (req, res) {
+export async function addToCart(req, res) {
   try {
     const { id: userId } = req.jwtPayload; 
     const items = req.body;
@@ -40,7 +41,9 @@ export async function addToCart (req, res) {
     console.error(err);
     res.status(500).json({
       success: false,
-      message: "Failed to add items to cart",
+      message: err.message.includes("not available")
+        ? "Product not available"
+        : "Failed to add items to cart",
       error: err.message,
     });
   }
@@ -177,6 +180,115 @@ export const createTransactionController = async (req, res) => {
           : err.message === "Cart is empty"
           ? "Cart is empty, cannot create transaction"
           : "Failed to create transaction",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * GET /transactions/history
+ * @summary Get user transaction history with pagination
+ * @tags Transaction
+ * @security bearerAuth
+ *
+ * @param {number} query.page - Page number (default: 1)
+ * @param {number} query.limit - Number of items per page (default: 5)
+ *
+ * @return {object} 200 - Transaction history fetched successfully
+ * @return {object} 500 - Failed to fetch transaction history
+ */
+export async function getTransactionHistoryController(req, res) {
+  try {
+    const userId = req.jwtPayload.id;
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 5;
+
+    const { transactions, totalItems } = await getTransactionHistoryModel({
+      userId,
+      page,
+      limit,
+    });
+
+    if (transactions.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No transaction history found",
+        pagination: createPagination({
+          totalItems: 0,
+          page,
+          limit,
+          baseUrl: "/transactions/history",
+        }).pagination,
+        links: createPagination({
+          totalItems: 0,
+          page,
+          limit,
+          baseUrl: "/transactions/history",
+        }).links,
+        data: [],
+      });
+    }
+
+    const { pagination, links } = createPagination({
+      totalItems,
+      page,
+      limit,
+      baseUrl: "/transactions/history",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "History transactions fetched successfully",
+      pagination,
+      links,
+      data: transactions,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch transaction history",
+      error: err.message,
+    });
+  }
+}
+
+/**
+ * GET /transactions/history/{id}
+ * @summary Get transaction detail by ID
+ * @tags Transaction
+ * @security bearerAuth
+ *
+ * @param {number} id.path - Transaction ID
+ *
+ * @return {object} 200 - Transaction detail
+ * @return {object} 404 - Transaction not found
+ * @return {object} 500 - Failed to fetch transaction detail
+ */
+export const getTransactionDetail = async (req, res) => {
+  try {
+    const { id: transactionId } = req.params;
+    const { id: userId } = req.jwtPayload;
+
+    const transaction = await getTransactionDetailModel({ transactionId, userId });
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Transaction detail fetched successfully",
+      data: transaction,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch transaction detail",
       error: err.message,
     });
   }
