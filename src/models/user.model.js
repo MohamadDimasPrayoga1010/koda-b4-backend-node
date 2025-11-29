@@ -21,15 +21,14 @@ export async function findUserByEmail(email) {
   });
 }
 
-
 export async function getAllUser({ page = 1, limit = 10, search = "" }) {
   const skip = (page - 1) * limit;
 
   const whereClause = search
     ? {
         OR: [
-          { fullname: {  contains: search.toLowerCase() } },
-          { email: {  contains: search.toLowerCase() } },
+          { fullname: { contains: search.toLowerCase() } },
+          { email: { contains: search.toLowerCase() } },
         ],
       }
     : {};
@@ -94,8 +93,16 @@ export async function getUserById(id) {
   });
 }
 
-export async function createUserAdmin({ fullname, email, password, phone, address, role, image }) {
-  if (!password) throw new Error("Password harus diisi"); 
+export async function createUserAdmin({
+  fullname,
+  email,
+  password,
+  phone,
+  address,
+  role,
+  image,
+}) {
+  if (!password) throw new Error("Password harus diisi");
 
   const hashedPassword = await argon2.hash(password);
 
@@ -119,9 +126,15 @@ export async function createUserAdmin({ fullname, email, password, phone, addres
   });
 }
 
-
-export async function editUserModel({ userId, fullname, email, password, phone, address, file }) {
-
+export async function editUserModel({
+  userId,
+  fullname,
+  email,
+  password,
+  phone,
+  address,
+  file,
+}) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { profile: true },
@@ -142,7 +155,11 @@ export async function editUserModel({ userId, fullname, email, password, phone, 
       password: hashedPassword,
       profile: {
         update: {
-          image: file ? file.filename : (user.profile ? user.profile.image : null),
+          image: file
+            ? file.filename
+            : user.profile
+            ? user.profile.image
+            : null,
           phone: phone || (user.profile ? user.profile.phone : null),
           address: address || (user.profile ? user.profile.address : null),
         },
@@ -154,9 +171,8 @@ export async function editUserModel({ userId, fullname, email, password, phone, 
   return updatedUser;
 }
 
-
 export async function deleteUserModel(userId) {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User tidak ditemukan");
 
   const transactions = await prisma.transaction.findMany({
@@ -179,8 +195,8 @@ export async function deleteUserModel(userId) {
   return deletedUser;
 }
 
-export async function getUserProfile(userId){
- return await prisma.user.findUnique({
+export async function getUserProfile(userId) {
+  return await prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -200,15 +216,15 @@ export async function getUserProfile(userId){
 }
 
 export async function updateUserProfile(userId, userData, profileData) {
-
   const updateUser = await prisma.user.update({
     where: { id: userId },
     data: userData,
   });
 
-
   let updateProfile;
-  const existingProfile = await prisma.profile.findUnique({ where: { userId } });
+  const existingProfile = await prisma.profile.findUnique({
+    where: { userId },
+  });
   if (existingProfile) {
     updateProfile = await prisma.profile.update({
       where: { userId },
