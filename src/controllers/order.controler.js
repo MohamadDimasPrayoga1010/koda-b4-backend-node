@@ -1,5 +1,6 @@
 import { createPagination } from "../libs/pagination.js";
-import { addToCartModel, createTransaction, deleteCartItem, getCartItems, getTransactionDetailModel, getTransactionHistoryModel } from "../models/order.models.js";
+import prisma from "../libs/prisma.js";
+import { addToCartModel, createTransaction, deleteCartItem, deleteTransactionModel, getAllTransactionsModel, getCartItems, getTransactionByIdModel, getTransactionDetailModel, getTransactionHistoryModel, updateTransactionStatusModel } from "../models/order.models.js";
 
 
 /**
@@ -159,7 +160,7 @@ export async function deleteCart (req, res) {
  * @return {object} 400 - Phone and address required
  * @return {object} 500 - Failed to create transaction
  */
-export const createTransactionController = async (req, res) => {
+export async function createTransactionController (req, res){
   try {
     const userId = req.jwtPayload.id;
     const { phone, address, paymentMethodId, shippingId } = req.body;
@@ -289,6 +290,191 @@ export const getTransactionDetail = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch transaction detail",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * GET /transactions
+ * @summary Get all transactions (Admin)
+ * @tags Transaction Admin
+ * @security bearerAuth
+ *
+ * @param {number} page.query - Page number for pagination
+ * @param {number} limit.query - Number of items per page
+ * @param {string} search.query - Search by invoice number or user fullname
+ *
+ * @return {object} 200 - Transactions fetched successfully
+ * @return {object} 401 - Unauthorized
+ * @return {object} 500 - Failed to fetch transactions
+ */
+export async function getAllTransactions (req, res){
+  try {
+    const { page = 1, limit = 10, search = "" } = req.query;
+    const baseUrl = "/transactions";
+
+    const { transactions, pagination } = await getAllTransactionsModel({
+      page: Number(page),
+      limit: Number(limit),
+      baseUrl,
+      search,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Transactions fetched successfully",
+      pagination: pagination.pagination,
+      links: pagination.links,
+      data: transactions,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch transactions",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * GET /transactions/{id}
+ * @summary Get transaction detail by ID (admin only)
+ * @tags Transaction Admin
+ * @security bearerAuth
+ *
+ * @param {number} id.path - Transaction ID
+ *
+ * @return {object} 200 - Transaction detail
+ * @return {object} 404 - Transaction not found
+ * @return {object} 500 - Failed to fetch transaction
+ */
+export async function getTransactionById (req, res) {
+  try {
+    const { id } = req.params;
+
+    const transaction = await getTransactionByIdModel(id);
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Transaction fetched successfully",
+      data: transaction,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch transaction",
+      error: err.message,
+    });
+  }
+};
+
+/**
+ * PATCH /transactions/{id}/status
+ * @summary Update transaction status (admin only)
+ * @tags Transaction Admin
+ * @security bearerAuth
+ *
+ * @param {number} id.path.required - Transaction ID
+ *
+ * @param {integer} statusId.body.required - ID of the new status (1 = Done, 2 = Pending, 3 = OnProgress, 4 = Waiting)
+ *
+ * @return {object} 200 - Transaction status updated successfully
+ * @return {object} 400 - Status is required
+ * @return {object} 404 - Transaction not found
+ * @return {object} 500 - Failed to update transaction status
+ */
+export async function updateTransactionStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { statusId } = req.body;
+
+    if (!statusId) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required",
+      });
+    }
+
+    const statusRecord = await prisma.status.findUnique({
+      where: { id: Number(statusId) },
+    });
+
+    if (!statusRecord) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid statusId",
+      });
+    }
+
+    const result = await updateTransactionStatusModel(id, statusRecord.name);
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Transaction status updated successfully",
+      data: result,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update transaction status",
+      error: err.message,
+    });
+  }
+}
+
+/**
+ * DELETE /transactions/{id}
+ * @summary Delete a transaction (admin only)
+ * @tags Transaction Admin
+ * @security bearerAuth
+ *
+ * @param {number} id.path - Transaction ID
+ *
+ * @return {object} 200 - Transaction deleted successfully
+ * @return {object} 404 - Transaction not found
+ * @return {object} 500 - Failed to delete transaction
+ */
+export async function deleteTransaction (req, res) {
+  try {
+    const { id } = req.params;
+
+    const result = await deleteTransactionModel(id);
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Transaction deleted successfully",
+      data: result,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete transaction",
       error: err.message,
     });
   }

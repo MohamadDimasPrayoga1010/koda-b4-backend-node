@@ -1,3 +1,4 @@
+import { createPagination } from "../libs/pagination.js";
 import prisma from "../libs/prisma.js";
 
 export async function addToCartModel(userId, items) {
@@ -293,4 +294,135 @@ export async function getTransactionDetailModel({ transactionId, userId }) {
       subtotal: i.subtotal,
     })),
   };
+}
+
+export async function getAllTransactionsModel({ page = 1, limit = 10, baseUrl, search = "" }) {
+  const skip = (page - 1) * limit;
+
+  const where = search
+    ? {
+        OR: [
+          { invoice_number: { contains: search, mode: "insensitive" } },
+          { user: { fullname: { contains: search, mode: "insensitive" } } },
+        ],
+      }
+    : {};
+
+  const totalItems = await prisma.transaction.count({ where });
+
+  const transactions = await prisma.transaction.findMany({
+    where,
+    skip,
+    take: limit,
+    orderBy: { created_at: "desc" },
+    include: {
+      user: true,
+      items: {
+        include: {
+          product: { select: { title: true, images: { take: 1, select: { image: true } } } },
+          variant: { select: { name: true } },
+          size: { select: { name: true } },
+        },
+      },
+      paymentMethod: true,
+      shipping: true,
+    },
+  });
+
+  const formatted = transactions.map((t) => ({
+    id: t.id,
+    noOrders: t.invoice_number,
+    createdAt: t.created_at,
+    statusName: t.status,
+    total: t.total,
+    userFullname: t.user.fullname,
+    userAddress: t.address,
+    userPhone: t.phone,
+    paymentMethod: t.paymentMethod?.name || null,
+    shippingName: t.shipping?.name || null,
+    orderItems: t.items.map((i) => ({
+      title: i.product.title,
+      qty: i.quantity,
+      image: i.product.images?.[0]?.image || null,
+      variant: i.variant?.name || null,
+      size: i.size?.name || null,
+    })),
+  }));
+
+  const pagination = createPagination({ totalItems, page, limit, baseUrl });
+
+  return { transactions: formatted, pagination };
+}
+
+export async function getTransactionByIdModel(id) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: Number(id) },
+    include: {
+      user: true,
+      items: {
+        include: {
+          product: { select: { title: true, images: { take: 1, select: { image: true } } } },
+          variant: { select: { name: true } },
+          size: { select: { name: true } },
+        },
+      },
+      paymentMethod: true,
+      shipping: true,
+    },
+  });
+
+  if (!transaction) return null;
+
+  return {
+    id: transaction.id,
+    noOrders: transaction.invoice_number,
+    createdAt: transaction.created_at,
+    statusName: transaction.status,
+    total: transaction.total,
+    userFullname: transaction.user.fullname,
+    userAddress: transaction.address,
+    userPhone: transaction.phone,
+    paymentMethod: transaction.paymentMethod?.name || null,
+    shippingName: transaction.shipping?.name || null,
+    orderItems: transaction.items.map((i) => ({
+      title: i.product.title,
+      qty: i.quantity,
+      size: i.size?.name || null,
+      image: i.product.images?.[0]?.image || null,
+      variant: i.variant?.name || null,
+    })),
+  };
+}
+
+export async function updateTransactionStatusModel(transactionId, newStatus) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: Number(transactionId) },
+  });
+
+  if (!transaction) return null;
+
+  const updated = await prisma.transaction.update({
+    where: { id: Number(transactionId) },
+    data: { status: newStatus },
+  });
+
+  return {
+    code: 200,
+    newStatus: updated.status,
+    transactionId: updated.id,
+  };
+}
+
+export async function deleteTransactionModel(transactionId) {
+  const transaction = await prisma.transaction.findUnique({
+    where: { id: Number(transactionId) },
+  });
+
+  if (!transaction) return null;
+
+  await prisma.transaction.delete({
+    where: { id: Number(transactionId) },
+  });
+
+  return { transactionId: Number(transactionId) };
 }
