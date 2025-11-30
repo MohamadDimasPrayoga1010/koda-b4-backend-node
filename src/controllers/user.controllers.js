@@ -13,7 +13,7 @@ import {
 /**
  * GET /users
  * @summary Get all users with pagination & search
- * @tags User
+ * @tags Admin User
  * @security bearerAuth
  *
  * @param {string} search.query - Search user by fullname or email (optional)
@@ -52,7 +52,7 @@ export async function getAllUsersController(req, res) {
 /**
  * GET /users/{id}
  * @summary Get user detail by ID
- * @tags User
+ * @tags Admin User
  * @security bearerAuth
  *
  * @param {number} id.path - User ID
@@ -123,7 +123,7 @@ export async function getUserByIdController(req, res) {
 /**
  * POST /users
  * @summary Create a new user (Admin only)
- * @tags User
+ * @tags Admin User
  * @security bearerAuth
  *
  * @description Membuat user baru dengan optional upload image (jpeg/jpg/png max 2MB).
@@ -190,7 +190,30 @@ export async function addUserController(req, res) {
   }
 }
 
+/**
+ * Update user request body
+ * @typedef {object} UpdateUserRequest
+ * @property {string} image - User profile photo - binary
+ * @property {string} fullname - Full name of user
+ * @property {string} email - Email of user
+ * @property {string} password - Password baru (opsional)
+ * @property {string} phone - Phone number
+ * @property {string} address - Address
+ */
 
+/**
+ * PATCH /users/{id}
+ * @summary Update existing user (Admin only)
+ * @tags Admin User
+ * @security bearerAuth
+ *
+ * @description Memperbarui data user dengan optional upload image (jpeg/jpg/png max 2MB). Password baru opsional.
+ * @param {integer} id.path.required - ID user yang akan diupdate
+ * @param {UpdateUserRequest} request.body.required - Data user yang akan diperbarui - multipart/form-data
+ * @return {object} 200 - User berhasil diperbarui
+ * @return {object} 400 - Validasi gagal (input salah / file invalid / user tidak ditemukan)
+ * @return {object} 500 - Gagal memperbarui user
+ */
 export async function editUserController(req, res) {
   try {
     const userId = parseInt(req.params.id);
@@ -244,7 +267,7 @@ export async function editUserController(req, res) {
 /**
  * DELETE /users/{id}
  * @summary Delete user by ID (Admin only)
- * @tags User
+ * @tags Admin User
  * @security bearerAuth
  *
  * @description Menghapus user beserta relasi terkait (transaction, cart, forgotPassword, profile).
@@ -280,7 +303,7 @@ export async function deleteUserController(req, res) {
 /**
  * GET /users/profile
  * @summary Get logged-in user's profile
- * @tags User
+ * @tags User Profile
  * @security bearerAuth
  * @return {object} 200 - Profile fetched successfully
  * @return {object} 401 - Unauthorized (invalid/missing token)
@@ -338,7 +361,7 @@ export async function getUserProfileController(req, res){
 /**
  * PATCH /users/profile
  * @summary Update logged-in user's profile (optional fields)
- * @tags User
+ * @tags User Profile
  * @security bearerAuth
  *
  * @description Update profile for the logged-in user. All fields are optional. You can upload a profile photo (jpeg/jpg/png, max 2MB) or update any combination of fullname, email, phone, address.
