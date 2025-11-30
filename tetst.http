@@ -1,10 +1,52 @@
-### REGISTER USER
+### REGISTER 
 POST http://localhost:8080/auth/register
 Content-Type: application/json
 
 {
   "fullname": "Test",
-  "email": "admin2@main.com",
-  "password": "admin123",
-  "role": "admin"
+  "email": "admin10@main.com",
+  "password": "test123",
+  "role":"admin"
 }
+
+### LOGIN
+POST http://localhost:8080/auth/login
+Content-Type: application/json
+
+{
+   "email": "admin10@main.com",
+  "password": "test123"
+}
+
+
+### Create Product
+POST http://localhost:8080/products
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywiZW1haWwiOiJhZG1pbjEwQG1haW4uY29tIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzY0MjU2NjYxLCJleHAiOjE3NjQyNTc1NjF9.zKSUozFD5Zwas6EMmMeXp59qwX8p42d2DPKcgOygHBc
+
+{
+  "title": "Americano ice",
+  "description": "Kopi hitam nyaman diminum",
+  "stock": 50,
+  "base_price": 75000,
+  "categoryIds": [1],
+  "sizeIds": [1],
+  "variantIds": [1]
+}
+
+
+### update Product
+PATCH http://localhost:8080/products/6
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzY0MjMwNjM4LCJleHAiOjE3NjQyMzE1Mzh9.FAfBYv7vCQF8t73v6U_ISUneAOtxPwq2cND8KFLTyOw
+
+{
+  "title": "Americano hot",
+  "description": "Kopi hitam nyaman diminum",
+  "stock": 50,
+  "base_price": 89000,
+  "categoryIds": [1],
+  "sizeIds": [1],
+  "variantIds": [1]
+}
+
