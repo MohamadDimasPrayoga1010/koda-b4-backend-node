@@ -205,10 +205,7 @@ export async function getFavoriteProducts() {
       title: true,
       description: true,
       base_price: true,
-      images: {
-        take: 1,
-        select: { image: true },
-      },
+      images: { take: 1, select: { image: true } },
     },
   });
 }
