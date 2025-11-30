@@ -1,5 +1,6 @@
 import { createPagination } from "../libs/pagination.js";
 import prisma from "../libs/prisma.js";
+import redisClient from "../libs/redis.js";
 import {
   createProduct,
   deleteProduct,
@@ -14,24 +15,20 @@ import {
 
 /**
  * POST /products
- * @summary Create a new product
- * @tags Product
+ * @summary Create product
+ * @tags Products Admin
  * @security bearerAuth
  * @consumes multipart/form-data
- *
- * @param {string} title.formData.required - Product title
- * @param {string} description.formData - Product description
- * @param {number} base_price.formData.required - Base price
- * @param {number} stock.formData - Stock quantity
- * @param {string} categoryIds.formData - JSON array of category IDs
- * @param {string} sizeIds.formData - JSON array of size IDs
- * @param {string} variantIds.formData - JSON array of variant IDs
- * @param {file[]} images.formData - Product images (multiple files allowed, jpeg/jpg/png max 2MB)
- *
- * @return {object} 201 - Product created successfully
- * @return {object} 400 - Missing required fields or invalid file
- * @return {object} 401 - Unauthorized (invalid/missing token)
- * @return {object} 500 - Server error
+ * @produces application/json
+ * @param {string} title.form.required
+ * @param {string} description.form
+ * @param {number} base_price.form.required
+ * @param {number} stock.form
+ * @param {string} categoryIds.form
+ * @param {string} sizeIds.form
+ * @param {string} variantIds.form
+ * @param {string} images.form - binary
+ * @return {object} 201 - success
  */
 export async function createProductController(req, res) {
   try {
@@ -176,7 +173,7 @@ export async function uploadProductImageController(req, res) {
 /**
  * GET /products
  * @summary Get all products with pagination, search & sorting
- * @tags Product
+ * @tags Products Admin
  * @security bearerAuth
  *
  * @param {string} search.query - Search by product title (optional)
@@ -253,7 +250,7 @@ export async function getAllProductsController(req, res) {
 /**
  * GET /products/{id}
  * @summary Get product detail by ID
- * @tags Product
+ * @tags Products Admin
  * @security bearerAuth
  *
  * @param {number} id.path - Product ID
@@ -309,27 +306,13 @@ export async function getProductByIdController(req, res) {
 
 /**
  * PATCH /products/{id}
- * @summary Update product
- * @tags Product
+ * @summary Update product (partial)
+ * @tags Products Admin
  * @security bearerAuth
- *
- * @param {number} id.path - Product ID
- *
- * @param {string} title.formData - Product title (optional)
- * @param {string} description.formData - Product description (optional)
- * @param {number} stock.formData - Product stock (optional)
- * @param {number} base_price.formData - Base price (optional)
- *
- * @param {string} categoryIds.formData - Array of category IDs (JSON string) - optional
- * @param {string} sizeIds.formData - Array of size IDs (JSON string) - optional
- * @param {string} variantIds.formData - Array of variant IDs (JSON string) - optional
- *
- * @param {array<string>} files.formData - Product images (jpg, jpeg, png) - optional
- *
- * @return {object} 200 - Product updated successfully
- * @return {object} 400 - Invalid input or no data to update
- * @return {object} 404 - Product not found
- * @return {object} 500 - Failed to update product
+ * @param {number} id.path.required - Product ID
+ * @return {object} 200 - success
+ * @return {object} 400 - bad request
+ * @return {object} 404 - not found
  */
 export async function updateProductController(req, res) {
   try {
@@ -494,7 +477,7 @@ export async function updateProductController(req, res) {
 /**
  * DELETE /products/{id}
  * @summary Delete product by ID
- * @tags Product
+ * @tags Products Admin
  * @security bearerAuth
  *
  * @param {number} id.path - Product ID
@@ -534,13 +517,22 @@ export async function deleteProductController(req, res) {
 /**
  * GET /products/favorite-product
  * @summary Get list of user's favorite products
- * @tags Products
+ * @tags Products User
  * @return {object} 200 - Successfully retrieved favorites
  * @return {object} 401 - Unauthorized (invalid/missing token)
  * @return {object} 500 - Server error
  */
 export async function getFavoriteProduct(req, res) {
   try {
+    const cachedData = await redisClient.get('favorite_products');
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Data produk favorit berhasil diambil (cache)",
+        data: JSON.parse(cachedData),
+      });
+    }
+
     const product = await getFavoriteProducts();
 
     const responseProducts = product.map((p) => ({
@@ -550,6 +542,8 @@ export async function getFavoriteProduct(req, res) {
       basePrice: p.base_price,
       image: p.images?.[0]?.image || null,
     }));
+
+    await redisClient.setEx('favorite_products', 600, JSON.stringify(responseProducts));
 
     return res.status(200).json({
       success: true,
@@ -565,8 +559,21 @@ export async function getFavoriteProduct(req, res) {
   }
 }
 
-
-export async function filterProducts (req, res) {
+/**
+ * GET /products/filter-product
+ * @summary Filter and search products
+ * @tags Products User
+ * @param {string} search.query - Search by title or description
+ * @param {number} category.query - Filter by category ID
+ * @param {string} sort.query - Sort by price (asc or desc) - enum:termurah,termahal
+ * @param {number} page.query - Page number (default: 1)
+ * @param {number} limit.query - Items per page (default: 10)
+ * @param {number} price_min.query - Minimum price
+ * @param {number} price_max.query - Maximum price
+ * @return {object} 200 - success response
+ * @return {object} 500 - error response
+ */
+export async function filterProducts(req, res) {
   try {
     const {
       search = "",
@@ -577,6 +584,17 @@ export async function filterProducts (req, res) {
       price_min,
       price_max,
     } = req.query;
+
+    const cacheKey = `filter_products:${search}:${category}:${sort}:${page}:${limit}:${price_min}:${price_max}`;
+
+    const cachedData = await redisClient.get(cacheKey);
+    if (cachedData) {
+      return res.status(200).json({
+        success: true,
+        message: "Data produk berhasil difilter (cache)",
+        ...JSON.parse(cachedData),
+      });
+    }
 
     const result = await filterProductsModel({
       search,
@@ -600,9 +618,7 @@ export async function filterProducts (req, res) {
       image: p.images?.[0]?.image || null,
     }));
 
-    res.status(200).json({
-      success: true,
-      message: "Data produk berhasil difilter",
+    const responseData = {
       pagination: {
         totalData: result.totalData,
         totalPages: result.totalPages,
@@ -610,6 +626,14 @@ export async function filterProducts (req, res) {
         limit: result.limit,
       },
       data: responseProducts,
+    };
+
+    await redisClient.setEx(cacheKey, 600, JSON.stringify(responseData));
+
+    res.status(200).json({
+      success: true,
+      message: "Data produk berhasil difilter",
+      ...responseData,
     });
 
   } catch (err) {
@@ -619,13 +643,13 @@ export async function filterProducts (req, res) {
       error: err.message,
     });
   }
-};
+}
 
 
 /**
  * GET /products/detail-product/{id}
  * @summary Get product detail by ID
- * @tags Product
+ * @tags Products User
  * @security bearerAuth
  *
  * @param {number} id.path - Product ID

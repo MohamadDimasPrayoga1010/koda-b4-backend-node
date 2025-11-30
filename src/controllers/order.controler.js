@@ -6,18 +6,28 @@ import { addToCartModel, createTransaction, deleteCartItem, deleteTransactionMod
 /**
  * POST /cart
  * @summary Add items to cart
+ * @description Add one or multiple items to user's cart. Requires authentication.
  * @tags Order
  * @security bearerAuth
- *
- * @param {array<object>} request.body.required - Array of cart items
- * @param {number} request.body[].productId.required - Product ID
- * @param {number} request.body[].variantId - Variant ID (optional)
- * @param {number} request.body[].sizeId - Size ID (optional)
- * @param {number} request.body[].quantity - Quantity (default 1)
- *
- * @return {object} 200 - Items added successfully
- * @return {object} 400 - Bad request
- * @return {object} 500 - Failed to add items
+ * @param {array<object>} request.body.required - Array of cart items - application/json
+ * @return {object} 200 - success response
+ * @return {object} 400 - bad request
+ * @return {object} 500 - server error
+ * @example request - Multiple items example
+ * [
+ *   {
+ *     "productId": 1,
+ *     "variantId": 2,
+ *     "sizeId": 3,
+ *     "quantity": 2
+ *   },
+ *   {
+ *     "productId": 5,
+ *     "variantId": 2,
+ *     "sizeId": 1,
+ *     "quantity": 1
+ *   }
+ * ]
  */
 export async function addToCart(req, res) {
   try {
@@ -145,20 +155,20 @@ export async function deleteCart (req, res) {
 };
 
 /**
- * POST /transaction
- * @summary Create a new transaction from cart
+ * POST /transactions
+ * @summary Create transaction from cart
  * @tags Transaction
  * @security bearerAuth
- *
- * @param {object} request.body.required - Transaction info (phone & address optional if profile exists)
- * @param {string} request.body.phone - Phone number (required if profile empty)
- * @param {string} request.body.address - Address (required if profile empty)
- * @param {number} request.body.paymentMethodId.required - Payment method ID
- * @param {number} request.body.shippingId.required - Shipping ID
- *
- * @return {object} 200 - Transaction created successfully
- * @return {object} 400 - Phone and address required
- * @return {object} 500 - Failed to create transaction
+ * @param {object} request.body.required - application/json
+ * @return {object} 200 - success response
+ * @example request - application/json
+ * {
+ *   "fullname": "nama",
+ *   "email": "nama@mail.com",
+ *   "address": "Jl. Contoh No. 123, Jakarta",
+ *   "paymentMethodId": 1,
+ *   "shippingId": 2
+ * }
  */
 export async function createTransactionController (req, res){
   try {
@@ -380,18 +390,16 @@ export async function getTransactionById (req, res) {
 
 /**
  * PATCH /transactions/{id}/status
- * @summary Update transaction status (admin only)
+ * @summary Update transaction status
  * @tags Transaction Admin
  * @security bearerAuth
- *
  * @param {number} id.path.required - Transaction ID
- *
- * @param {integer} statusId.body.required - ID of the new status (1 = Done, 2 = Pending, 3 = OnProgress, 4 = Waiting)
- *
- * @return {object} 200 - Transaction status updated successfully
- * @return {object} 400 - Status is required
- * @return {object} 404 - Transaction not found
- * @return {object} 500 - Failed to update transaction status
+ * @param {number} statusId.form.required - Status ID
+ * @consumes application/x-www-form-urlencoded
+ * @return {object} 200 - success response
+ * @return {object} 400 - bad request
+ * @return {object} 404 - transaction not found
+ * @return {object} 500 - server error
  */
 export async function updateTransactionStatus(req, res) {
   try {
