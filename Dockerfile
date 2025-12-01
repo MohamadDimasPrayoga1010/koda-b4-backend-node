@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:alpine AS builder
 
 WORKDIR /app
 
@@ -11,11 +11,12 @@ COPY . .
 
 RUN npx prisma generate
 
-FROM node:20-alpine
+FROM node:alpine
 
 WORKDIR /app
 
-RUN && mkdir -p /app/uploads
+RUN mkdir -p /app/uploads/
+
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
