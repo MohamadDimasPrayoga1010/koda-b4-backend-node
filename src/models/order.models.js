@@ -1,18 +1,45 @@
 import { createPagination } from "../libs/pagination.js";
 import prisma from "../libs/prisma.js";
 
+
 export async function addToCartModel(userId, items) {
   const addedItems = [];
 
   for (const item of items) {
     const { productId, variantId = null, sizeId = null, quantity = 1 } = item;
 
+    if (quantity < 1) {
+      throw new Error(`Quantity must be at least 1`);
+    }
+
     const product = await prisma.product.findUnique({
       where: { id: productId },
-      select: { id: true, base_price: true, title: true, images: { take: 1, select: { image: true } } },
+      select: { 
+        id: true, 
+        title: true,
+        base_price: true, 
+        stock: true,  
+        images: { take: 1, select: { image: true } } 
+      },
     });
 
-    if (!product) throw new Error(`Product with ID ${productId} not available`);
+    if (!product) {
+      throw new Error(`Product with ID ${productId} not available`);
+    }
+
+    if (product.stock === null || product.stock === undefined) {
+      throw new Error(`Product "${product.title}" does not have stock information`);
+    }
+
+    if (product.stock <= 0) {
+      throw new Error(`Product "${product.title}" is out of stock`);
+    }
+
+    if (quantity > product.stock) {
+      throw new Error(
+        `Product "${product.title}" only has ${product.stock} item(s) in stock, but you requested ${quantity}`
+      );
+    }
 
     let variant = null;
     if (variantId) {
@@ -20,7 +47,9 @@ export async function addToCartModel(userId, items) {
         where: { id: variantId },
         select: { id: true, name: true, additional_price: true },
       });
-      if (!variant) throw new Error(`Variant with ID ${variantId} not available`);
+      if (!variant) {
+        throw new Error(`Variant with ID ${variantId} not available`);
+      }
     }
 
     let size = null;
@@ -29,25 +58,70 @@ export async function addToCartModel(userId, items) {
         where: { id: sizeId },
         select: { id: true, name: true, additional_price: true },
       });
-      if (!size) throw new Error(`Size with ID ${sizeId} not available`);
+      if (!size) {
+        throw new Error(`Size with ID ${sizeId} not available`);
+      }
     }
 
-    const cartItem = await prisma.cart.create({
-      data: {
+    const existingCartItem = await prisma.cart.findFirst({
+      where: {
         userId,
         productId,
         variantId,
         sizeId,
-        quantity,
-      },
-      include: {
-        product: {
-          select: { title: true, base_price: true, images: { take: 1, select: { image: true } } },
-        },
-        variant: { select: { name: true, additional_price: true } },
-        size: { select: { name: true, additional_price: true } },
       },
     });
+
+    let cartItem;
+
+    if (existingCartItem) {
+      const newQuantity = existingCartItem.quantity + quantity;
+
+      if (newQuantity > product.stock) {
+        throw new Error(
+          `Cannot add ${quantity} more of "${product.title}". You already have ${existingCartItem.quantity} in cart. Maximum stock is ${product.stock}`
+        );
+      }
+
+      cartItem = await prisma.cart.update({
+        where: { id: existingCartItem.id },
+        data: { quantity: newQuantity },
+        include: {
+          product: {
+            select: { 
+              title: true, 
+              base_price: true, 
+              stock: true,
+              images: { take: 1, select: { image: true } } 
+            },
+          },
+          variant: { select: { name: true, additional_price: true } },
+          size: { select: { name: true, additional_price: true } },
+        },
+      });
+    } else {
+      cartItem = await prisma.cart.create({
+        data: {
+          userId,
+          productId,
+          variantId,
+          sizeId,
+          quantity,
+        },
+        include: {
+          product: {
+            select: { 
+              title: true, 
+              base_price: true, 
+              stock: true,
+              images: { take: 1, select: { image: true } } 
+            },
+          },
+          variant: { select: { name: true, additional_price: true } },
+          size: { select: { name: true, additional_price: true } },
+        },
+      });
+    }
 
     const subtotal =
       cartItem.quantity *
@@ -64,6 +138,7 @@ export async function addToCartModel(userId, items) {
       variant: cartItem.variant?.name || null,
       size: cartItem.size?.name || null,
       quantity: cartItem.quantity,
+      availableStock: cartItem.product.stock,
       subtotal,
     });
   }
