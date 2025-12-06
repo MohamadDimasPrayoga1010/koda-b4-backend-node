@@ -189,37 +189,80 @@ export async function deleteCartItem(userId, cartId) {
   return true;
 }
 
-export async function createTransaction(userId, { phone, address, paymentMethodId, shippingId, fullname, email }) {
+export async function createTransaction(
+  userId,
+  { phone, address, paymentMethodId, shippingId, fullname, email }
+) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
       profile: true,
-      carts: { include: { product: true, variant: true } },
+      carts: {
+        include: {
+          product: true,
+          variant: true,
+          size: true,
+        },
+      },
     },
   });
 
   if (!user) throw new Error("User not found");
 
-  const userFullname = fullname || user.fullname;
-  const userEmail = email || user.email;
-  const userPhone = user.profile?.phone || phone;
-  const userAddress = user.profile?.address || address;
+  const userFullname = fullname?.trim() !== "" ? fullname : (user.fullname || user.profile?.fullname);
+  const userEmail = email?.trim() !== "" ? email : (user.email || user.profile?.email);
+  const userPhone = phone?.trim() !== "" ? phone : user.profile?.phone;
+  const userAddress = address?.trim() !== "" ? address : user.profile?.address;
 
-  if (!userPhone || !userAddress) throw new Error("Phone and address required");
+  if (!userFullname || !userEmail || !userPhone || !userAddress) {
+    throw new Error("Fullname, email, phone, and address are required (body or profile)");
+  }
+
 
   const cartItems = user.carts;
+
+  if (!cartItems || cartItems.length === 0) {
+    throw new Error("Cart is empty");
+  }
+
   const totalItemsPrice = cartItems.reduce((sum, item) => {
-    const basePrice = item.product.base_price;
+    const basePrice = item.product.base_price || 0;
     const variantPrice = item.variant?.additional_price || 0;
-    return sum + (basePrice + variantPrice) * item.quantity;
+    const sizePrice = item.size?.additional_price || 0;
+
+    const itemTotal = (basePrice + variantPrice + sizePrice) * item.quantity;
+    return sum + itemTotal;
   }, 0);
 
-  const shipping = await prisma.shipping.findUnique({ where: { id: shippingId } });
-  const shippingFee = shipping?.additional_price || 0;
+  const shipping = await prisma.shipping.findUnique({
+    where: { id: shippingId },
+  });
 
-  const total = totalItemsPrice + shippingFee;
+  if (!shipping) {
+    throw new Error("Shipping method not found");
+  }
 
-  const invoiceNumber = `INV-${new Date().toISOString().replace(/\D/g,'').slice(0,14)}-${userId}`;
+  const shippingFee = shipping.additional_price || 0;
+
+  const subtotal = totalItemsPrice + shippingFee;
+
+  const taxRate = 0.1;
+  const taxAmount = subtotal * taxRate;
+
+  const total = subtotal + taxAmount;
+
+  const invoiceNumber = `INV-${new Date()
+    .toISOString()
+    .replace(/\D/g, "")
+    .slice(0, 14)}-${userId}`;
+
+  const paymentMethod = await prisma.paymentMethod.findUnique({
+    where: { id: paymentMethodId },
+  });
+
+  if (!paymentMethod) {
+    throw new Error("Payment method not found");
+  }
 
   const transaction = await prisma.transaction.create({
     data: {
@@ -232,27 +275,46 @@ export async function createTransaction(userId, { phone, address, paymentMethodI
       shippingId,
       invoice_number: invoiceNumber,
       total,
-      status: "OnProgres",
+      status: "OnProgress",
       items: {
-        create: cartItems.map(item => ({
-          productId: item.productId,
-          variantId: item.variantId,
-          quantity: item.quantity,
-          subtotal: (item.product.base_price + (item.variant?.additional_price || 0)) * item.quantity
-        }))
-      }
+        create: cartItems.map((item) => {
+          const basePrice = item.product.base_price || 0;
+          const variantPrice = item.variant?.additional_price || 0;
+          const sizePrice = item.size?.additional_price || 0;
+
+          return {
+            productId: item.productId,
+            variantId: item.variantId,
+            sizeId: item.sizeId,
+            quantity: item.quantity,
+            subtotal: (basePrice + variantPrice + sizePrice) * item.quantity,
+          };
+        }),
+      },
     },
     include: {
       items: {
         include: {
-          product: { select: { title: true } },
-          variant: { select: { name: true } }
-        }
+          product: { select: { title: true, base_price: true } },
+          variant: { select: { name: true, additional_price: true } },
+          size: { select: { name: true, additional_price: true } },
+        },
       },
       paymentMethod: true,
-      shipping: true
-    }
+      shipping: true,
+    },
   });
+
+  for (const item of cartItems) {
+    await prisma.product.update({
+      where: { id: item.productId },
+      data: {
+        stock: {
+          decrement: item.quantity,
+        },
+      },
+    });
+  }
 
   await prisma.cart.deleteMany({ where: { userId } });
 
@@ -263,24 +325,42 @@ export async function createTransaction(userId, { phone, address, paymentMethodI
     email: transaction.email,
     phone: transaction.phone,
     address: transaction.address,
+    paymentMethodId: transaction.paymentMethodId,
     paymentMethodName: transaction.paymentMethod.name,
+    shippingId: transaction.shippingId,
     shippingName: transaction.shipping.name,
+    shippingFee: shippingFee,
     invoiceNumber: transaction.invoice_number,
+
+    itemsTotal: totalItemsPrice,
+    shippingTotal: shippingFee,
+    subtotal: subtotal,
+    taxRate: `${taxRate * 100}%`,
+    taxAmount: taxAmount,
     total: transaction.total,
+
     status: transaction.status,
     createdAt: transaction.created_at,
     updatedAt: transaction.updated_at,
-    items: transaction.items.map(i => ({
+
+    items: transaction.items.map((i) => ({
       id: i.id,
       productId: i.productId,
       productName: i.product.title,
+      basePrice: i.product.base_price,
       quantity: i.quantity,
       variantId: i.variantId,
       variantName: i.variant?.name || null,
-      subtotal: i.subtotal
-    }))
+      variantPrice: i.variant?.additional_price || 0,
+      sizeId: i.sizeId,
+      sizeName: i.size?.name || null,
+      sizePrice: i.size?.additional_price || 0,
+      subtotal: i.subtotal,
+    })),
   };
 }
+
+
 
 
 export async function getTransactionHistoryModel({ userId, page, limit }) {
@@ -308,22 +388,33 @@ export async function getTransactionHistoryModel({ userId, page, limit }) {
 
     const itemsTotal = t.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     const shippingFee = t.shipping?.additional_price || 0;
-    const total = itemsTotal + shippingFee;
+
+    const taxRate = 0.10;
+    const subtotal = itemsTotal + shippingFee;
+    const taxAmount = subtotal * taxRate;
+    const total = subtotal + taxAmount;
 
     return {
       id: t.id,
       invoiceNumber: t.invoice_number,
       image: firstImage,
+
+      itemsTotal,
+      shippingFee,
+      subtotal,
+      taxRate: `${taxRate * 100}%`,
+      taxAmount,
       total,
+
       status: t.status,
       createdAt: t.created_at,
       shippingName: t.shipping?.name || null,
-      shippingFee,
     };
   });
 
   return { transactions: formatted, totalItems };
 }
+
 
 export async function getTransactionDetailModel({ transactionId, userId }) {
   const transaction = await prisma.transaction.findFirst({
