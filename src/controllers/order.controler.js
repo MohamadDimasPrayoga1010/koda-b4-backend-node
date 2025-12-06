@@ -170,31 +170,67 @@ export async function deleteCart (req, res) {
  *   "shippingId": 2
  * }
  */
-export async function createTransactionController (req, res){
+export async function createTransactionController(req, res) {
   try {
     const userId = req.jwtPayload.id;
-    const { phone, address, paymentMethodId, shippingId } = req.body;
 
-    const transaction = await createTransaction(userId, { phone, address, paymentMethodId, shippingId });
+    const {
+      phone,
+      address,
+      paymentMethodId,
+      shippingId,
+      fullname,
+      email
+    } = req.body || {};
 
-    res.status(200).json({
+    const transaction = await createTransaction(userId, { 
+      phone, 
+      address, 
+      paymentMethodId, 
+      shippingId,
+      fullname,
+      email
+    });
+
+    res.status(201).json({
       success: true,
       message: "Transaction created successfully",
       data: transaction,
     });
+
   } catch (err) {
-    res.status(400).json({
+    console.error(err);
+
+    let statusCode = 400;
+
+    if (err.message === "User not found" || 
+        err.message === "Shipping method not found" || 
+        err.message === "Payment method not found") {
+      statusCode = 404;
+    }
+
+    let message = "Failed to create transaction";
+
+    if (err.message === "User not found") {
+      message = "User not found";
+    } else if (err.message === "Phone and address required") {
+      message = "Phone and address must be filled";
+    } else if (err.message === "Cart is empty") {
+      message = "Cart is empty, cannot create transaction";
+    } else if (err.message === "Shipping method not found") {
+      message = "Shipping method not found";
+    } else if (err.message === "Payment method not found") {
+      message = "Payment method not found";
+    }
+
+    res.status(statusCode).json({
       success: false,
-      message:
-        err.message === "Phone and address required"
-          ? "Phone and address must be filled"
-          : err.message === "Cart is empty"
-          ? "Cart is empty, cannot create transaction"
-          : "Failed to create transaction",
+      message: message,
       error: err.message,
     });
   }
-};
+}
+
 
 /**
  * GET /transactions/history
