@@ -39,7 +39,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.KEY }}
-          port: ${{ secrets.PORT }}
+          port: 9050
           script: |
             cd ~/server-express && docker compose pull && docker compose up backend -d
             docker system prune -a --volumes -f
