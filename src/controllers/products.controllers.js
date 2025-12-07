@@ -76,8 +76,47 @@ export async function createProductController(req, res) {
     const sizeIds = parseIds(data.sizeIds, "sizeIds");
     const variantIds = parseIds(data.variantIds, "variantIds");
 
+    if (categoryIds.length > 0) {
+      const existingCategories = await prisma.category.findMany({
+        where: { id: { in: categoryIds } }
+      });
+      if (existingCategories.length !== categoryIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: "Beberapa category ID tidak ditemukan",
+        });
+      }
+    }
+
+    if (sizeIds.length > 0) {
+      const existingSizes = await prisma.size.findMany({
+        where: { id: { in: sizeIds } }
+      });
+      if (existingSizes.length !== sizeIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: "Beberapa size ID tidak ditemukan",
+        });
+      }
+    }
+
+    if (variantIds.length > 0) {
+      const existingVariants = await prisma.variant.findMany({
+        where: { id: { in: variantIds } }
+      });
+      if (existingVariants.length !== variantIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: "Beberapa variant ID tidak ditemukan",
+        });
+      }
+    }
+
     const product = await createProduct({
-      ...data,
+      title: data.title,
+      description: data.description,
+      base_price: data.base_price,
+      stock: data.stock,
       categoryIds,
       sizeIds,
       variantIds,
@@ -107,6 +146,7 @@ export async function createProductController(req, res) {
           additionalPrice: v.variant.additional_price,
         })),
         images: product.images.map(i => ({
+          id: i.id,
           productId: i.productId,
           image: i.image,
           updatedAt: i.updated_at,
@@ -330,7 +370,7 @@ export async function updateProductController(req, res) {
     const title = body.title?.trim() || undefined;
     const description = body.description?.trim() || undefined;
     const stock = body.stock != null && body.stock !== "" ? Number(body.stock) : undefined;
-    const base_price = body.base_price != null && body.base_price !== "" ? Number(body.base_price) : undefined;
+    const base_price = body.base_price != null && body.base_price !== "" ? Number(body.base_price) : undefined; 
 
     let categoryIds = [];
     if (body.categoryIds) {
@@ -419,6 +459,7 @@ export async function updateProductController(req, res) {
     if (base_price !== undefined) updateData.base_price = base_price;
 
     if (categoryIds.length > 0) {
+      updateData.category_id = categoryIds[0];  
       updateData.categories = {
         deleteMany: {},
         create: categoryIds.map(catId => ({ category: { connect: { id: catId } } })),

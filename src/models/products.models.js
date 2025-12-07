@@ -27,19 +27,48 @@ export async function createProduct(data, files) {
       description,
       base_price: Number(base_price),
       stock: stock ? Number(stock) : 0,
-      categories: {
-        create: categories.map((id) => ({ category: { connect: { id } } })),
-      },
-      sizes: { create: sizes.map((id) => ({ size: { connect: { id } } })) },
-      variants: {
-        create: variants.map((id) => ({ variant: { connect: { id } } })),
-      },
-      images: { create: imageData },
+      category_id: categories.length > 0 ? categories[0] : null, 
+      categories: categories.length > 0 ? {
+        create: categories.map((categoryId) => ({
+          category: {
+            connect: { id: categoryId }
+          }
+        }))
+      } : undefined,
+      sizes: sizes.length > 0 ? {
+        create: sizes.map((sizeId) => ({
+          size: {
+            connect: { id: sizeId }
+          }
+        }))
+      } : undefined,
+      variants: variants.length > 0 ? {
+        create: variants.map((variantId) => ({
+          variant: {
+            connect: { id: variantId }
+          }
+        }))
+      } : undefined,
+      images: imageData.length > 0 ? {
+        create: imageData
+      } : undefined,
     },
     include: {
-      categories: { include: { category: true } },
-      sizes: { include: { size: true } },
-      variants: { include: { variant: true } },
+      categories: {
+        include: {
+          category: true
+        }
+      },
+      sizes: {
+        include: {
+          size: true
+        }
+      },
+      variants: {
+        include: {
+          variant: true
+        }
+      },
       images: true,
     },
   });
@@ -141,6 +170,12 @@ export async function updateProduct(id, data) {
   const categories = parseIds(data.categoryIds);
   const sizes = parseIds(data.sizeIds);
   const variants = parseIds(data.variantIds);
+
+  if (data.category_id !== undefined) {
+    updateData.category_id = Number(data.category_id);
+  } else if (categories.length > 0) {
+    updateData.category_id = categories[0];  
+  }
 
   if (categories.length > 0) {
     updateData.categories = {
