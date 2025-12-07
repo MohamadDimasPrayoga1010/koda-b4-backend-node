@@ -6,8 +6,13 @@
       "use": "@vercel/node"
     }
   ],
-  "buildCommand": "npm install && npx prisma generate",
   "routes": [
-    { "src": "/(.*)", "dest": "index.js" }
-  ]
+    {
+      "src": "/(.*)",
+      "dest": "index.js"
+    }
+  ],
+  "env": {
+    "DATABASE_URL": "@database_url"
+  }
 }
