@@ -2,12 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+
 COPY package*.json ./
 COPY prisma ./prisma
+
 COPY src ./src
-COPY .env .env
 
 RUN npm ci
+
 RUN npx prisma generate
 
 COPY . .
@@ -15,6 +17,7 @@ COPY . .
 FROM node:20-alpine
 
 WORKDIR /app
+
 RUN mkdir -p /app/uploads/products /app/uploads/profiles
 
 COPY --from=builder /app/node_modules ./node_modules
@@ -24,4 +27,5 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app ./
 
 EXPOSE 8080
+
 ENTRYPOINT ["npm", "start"]
