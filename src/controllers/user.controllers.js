@@ -389,6 +389,34 @@ export async function updateUserProfileController(req, res) {
       });
     }
 
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: "Format email tidak valid",
+        });
+      }
+
+      const existingUser = await findUserByEmail(email);
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({
+          success: false,
+          message: "Email sudah digunakan oleh user lain",
+        });
+      }
+    }
+
+    if (phone) {
+      const phoneRegex = /^(\+62|62|0)[0-9]{9,13}$/;
+      if (!phoneRegex.test(phone)) {
+        return res.status(400).json({
+          success: false,
+          message: "Format nomor telepon tidak valid. Contoh: 08123456789 atau +628123456789",
+        });
+      }
+    }
+
     if (file) {
       const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
       const maxSize = 2 * 1024 * 1024; 
