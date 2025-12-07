@@ -13,6 +13,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+console.log("starting....")
 app.use("/auth", authRoutes);
 app.use("/products", productRouter)
 app.use("/users", userRouter)

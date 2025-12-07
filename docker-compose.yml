@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_DOCKER}
       POSTGRES_DB: ${POSTGRES_DB_DOCKER}
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -33,7 +33,7 @@ services:
     build: .
     container_name: backend_app_express
     ports:
-      - "8081:8080"
+      - "8086:8080"
     environment:
       APP_URL: ${APP_URL}
       ORIGIN_URL: ${ORIGIN_URL}
