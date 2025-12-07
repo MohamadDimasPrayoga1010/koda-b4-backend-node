@@ -1,57 +1,55 @@
 import prisma from "../libs/prisma.js";
 
-export async function forgotPasswordModel(userId, otp, expiresAt) {
-  return prisma.forgotPassword.upsert({
-    where: { userId },
+export async function createOrUpdateForgotPassword(userId, hashedToken, expiresAt) {
+  return await prisma.forgotPassword.upsert({
+    where: { 
+      userId: userId 
+    },
     update: {
-      token: otp,
-      expires_at: expiresAt,
+      token: hashedToken,
+      expires_at: expiresAt
     },
     create: {
-      userId,
-      token: otp,
-      expires_at: expiresAt,
-    },
+      userId: userId,
+      token: hashedToken,
+      expires_at: expiresAt
+    }
   });
 }
 
-export const setUserOtp = async (email, otp, expiresAt) => {
-  return prisma.user.update({
-    where: { email },
-    data: {
-      reset_otp: otp,
-      reset_expires: expiresAt,
-    },
+export async function getForgotPasswordByUserId(userId) {
+  return await prisma.forgotPassword.findUnique({
+    where: { 
+      userId: userId 
+    }
   });
-};
+}
 
-export const findUserByOtp = async (email, otp) => {
-  return prisma.user.findFirst({
+
+export async function getAllActiveForgotPasswords() {
+  return await prisma.forgotPassword.findMany({
     where: {
-      email,
-      reset_otp: otp,
-      reset_expires: {
-        gt: new Date(), 
-      },
-    },
+      expires_at: {
+        gt: new Date()
+      }
+    }
   });
-};
+}
 
-export const clearUserOtp = async (userId) => {
-  return prisma.user.update({
-    where: { id: userId },
-    data: {
-      reset_otp: null,
-      reset_expires: null,
+export async function updateUserPassword(userId, hashedPassword) {
+  return await prisma.user.update({
+    where: { 
+      id: userId 
     },
-  });
-};
-
-export const setUserPassword = async (userId, hashedPassword) => {
-  return prisma.user.update({
-    where: { id: userId },
     data: {
       password: hashedPassword,
-    },
+      updated_at: new Date()
+    }
   });
-};
+}
+
+export async function deleteForgotPasswordByUserId(userId) {
+  return await prisma.forgotPassword.delete({
+    where: { userId: userId }
+  });
+}

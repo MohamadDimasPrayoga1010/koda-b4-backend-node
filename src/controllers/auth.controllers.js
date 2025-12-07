@@ -3,7 +3,7 @@ import argon2 from "argon2";
 import { createUser, findUserByEmail } from "../models/user.model.js";
 import { generateOTP, otpExpiry } from "../libs/otp.js";
 import { sendOTPEmail } from "../libs/mailer.js";
-import { clearUserOtp, findUserByOtp, setUserOtp, setUserPassword } from "../models/auth.models.js";
+import { createOrUpdateForgotPassword, deleteForgotPasswordByUserId, getAllActiveForgotPasswords, getForgotPasswordByUserId, updateUserPassword } from "../models/auth.models.js";
 
 
 /**
@@ -132,31 +132,39 @@ export async function forgotPassword(req, res) {
   try {
     const { email } = req.body;
 
-    const user = await findUserByEmail(email);
-    if (!user) {
-      return res.status(404).json({
-        status: false,
-        message: "Email tidak ditemukan",
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email wajib diisi"
       });
     }
 
-    const otp = generateOTP();       
-    const expires = otpExpiry(2);     
+    const user = await findUserByEmail(email);
+    
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: "Email tidak terdaftar"
+      });
+    }
 
-    await setUserOtp(email, otp, expires);
+    const otp = generateOTP(6);
+    const hashedOTP = await argon2.hash(otp);
+    const expiresAt = otpExpiry(2);
 
+    await createOrUpdateForgotPassword(user.id, hashedOTP, expiresAt);
     await sendOTPEmail(email, otp);
 
     return res.status(200).json({
-      status: true,
-      message: "OTP berhasil dikirim ke email",
+      success: true,
+      message: "OTP berhasil dikirim ke email Anda"
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("FORGOT PASSWORD ERROR:", error);
     return res.status(500).json({
-      status: false,
-      message: "Terjadi kesalahan server",
+      success: false,
+      message: "Terjadi kesalahan server"
     });
   }
 }
@@ -178,29 +186,70 @@ export async function verifyOtp(req, res) {
 
     if (!email || !otp) {
       return res.status(400).json({
-        status: false,
-        message: "Email dan OTP wajib diisi",
+        success: false,
+        message: "Email dan OTP wajib diisi"
       });
     }
 
-    const user = await findUserByOtp(email, otp);
-
-    if (!user) {
+    if (!/^\d{6}$/.test(otp)) {
       return res.status(400).json({
-        status: false,
-        message: "OTP salah atau sudah kadaluarsa",
+        success: false,
+        message: "Format OTP tidak valid"
+      });
+    }
+
+    const user = await findUserByEmail(email);
+    
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP tidak valid atau sudah kadaluarsa"
+      });
+    }
+
+    const forgotPassword = await getForgotPasswordByUserId(user.id);
+    
+    if (!forgotPassword || !forgotPassword.token) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP tidak valid atau sudah kadaluarsa"
+      });
+    }
+
+    if (new Date() > forgotPassword.expires_at) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP tidak valid atau sudah kadaluarsa"
+      });
+    }
+
+    let isValidOTP = false;
+    try {
+      isValidOTP = await argon2.verify(forgotPassword.token, otp);
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP tidak valid atau sudah kadaluarsa"
+      });
+    }
+    
+    if (!isValidOTP) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP tidak valid atau sudah kadaluarsa"
       });
     }
 
     return res.status(200).json({
-      status: true,
-      message: "OTP berhasil diverifikasi",
+      success: true,
+      message: "OTP berhasil diverifikasi"
     });
 
   } catch (error) {
+    console.error("VERIFY OTP ERROR:", error);
     return res.status(500).json({
-      status: false,
-      message: "Server error",
+      success: false,
+      message: "Terjadi kesalahan server"
     });
   }
 }
@@ -216,42 +265,68 @@ export async function verifyOtp(req, res) {
  * @return {object} 200 - Password berhasil di-reset
  * @return {object} 400 - Email tidak ditemukan atau request invalid
  */
-export const resetPasswordController = async (req, res) => {
-   try {
-    const { email, newPassword } = req.body;
+export async function resetPasswordController(req, res) {
+  try {
+    const { otp, newPassword } = req.body;
 
-    if (!email || !newPassword) {
+    if (!otp || !newPassword) {
       return res.status(400).json({
-        status: false,
-        message: "Email dan password baru wajib diisi",
+        success: false,
+        message: "OTP dan password baru wajib diisi"
       });
     }
 
-    const user = await findUserByEmail(email);
+    if (!/^\d{6}$/.test(otp)) {
+      return res.status(400).json({
+        success: false,
+        message: "Format OTP tidak valid"
+      });
+    }
 
-    if (!user) {
-      return res.status(404).json({
-        status: false,
-        message: "Email tidak ditemukan",
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password minimal 6 karakter"
+      });
+    }
+
+    const allForgotPasswords = await getAllActiveForgotPasswords();
+    
+    let validUser = null;
+    
+    for (const record of allForgotPasswords) {
+      try {
+        const isMatch = await argon2.verify(record.token, otp);
+        if (isMatch) {
+          validUser = record;
+          break;
+        }
+      } catch (err) {
+        continue;
+      }
+    }
+
+    if (!validUser) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP tidak valid atau sudah kadaluarsa"
       });
     }
 
     const hashedPassword = await argon2.hash(newPassword);
-
-    await setUserPassword(user.id, hashedPassword);
-
-    await clearUserOtp(user.id);
+    await updateUserPassword(validUser.userId, hashedPassword);
+    await deleteForgotPasswordByUserId(validUser.userId);
 
     return res.status(200).json({
-      status: true,
-      message: "Password berhasil di-reset",
+      success: true,
+      message: "Password berhasil direset"
     });
 
   } catch (error) {
     console.error("RESET PASSWORD ERROR:", error);
     return res.status(500).json({
-      status: false,
-      message: "Server error",
+      success: false,
+      message: "Terjadi kesalahan server"
     });
   }
-};
+}
