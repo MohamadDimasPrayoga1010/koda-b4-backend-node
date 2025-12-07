@@ -42,4 +42,4 @@ jobs:
           port: ${{ secrets.PORT }}
           script: |
             cd ~/server-express && docker compose pull && docker compose up backend -d
-            docker system prune -a --volumes
+            docker system prune -a --volumes -f
